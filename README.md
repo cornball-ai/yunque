@@ -29,9 +29,11 @@ pak::pak("cornball-ai/yunque")
 | `yq_softmax()`, `yq_layer_norm()`, `yq_rms_norm()`, `yq_silu()` | Composed ops with the explicit-broadcast dance done for you |
 | `yq_linear()` | Bias-free linear on pre-transposed weights, `precision = "highest"` |
 | `yq_sdpa()` | Scaled dot-product attention from batched matmul + softmax |
-| `yq_rope_apply()` | Rotary embeddings, FLUX interleaved-pair convention |
-| `yq_slice_lastdim()` | Static slicing for fused-projection splits |
-| `yq_flux2_single_block()` | FLUX.2 Klein single-stream block as a jit-ready closure |
+| `yq_rope_apply()`, `yq_flux2_rope()` | Rotary embeddings (FLUX interleaved-pair) and the FLUX.2 4-axis table builder |
+| `yq_slice_lastdim()`, `yq_slice_seq()` | Static slicing for fused-projection and text/image splits |
+| `yq_flux2_single_block()`, `yq_flux2_double_block()` | FLUX.2 Klein single- and double-stream blocks as jit-ready closures |
+| `yq_flux2_transformer()` | The full FLUX.2 Klein DiT forward (5 double + 20 single blocks) |
+| `yq_flux2_load_weights()`, `yq_read_safetensors()` | bf16→f32 checkpoint loader (base R, no torch) into the weights pytree |
 
 anvl binary ops broadcast scalars only — no implicit numpy/torch-style
 shape broadcasting. These helpers wrap every reduction-feeds-binary-op
@@ -46,8 +48,19 @@ One `single_transformer_blocks.0` from
 3.876B parameters total (7.8 GB bf16 / 15.5 GB f32). Weights are read
 from your local HuggingFace cache; nothing is redistributed here.
 
-**Parity** (S = 512, f32, real weights, jitted anvl vs R torch
-reference): max abs diff **2.97e-06**, mean **1.24e-07**.
+**Parity**, jitted anvl vs the R torch reference on real weights (f32):
+
+| Unit | Max abs diff | Correlation |
+|---|---|---|
+| single-stream block (S = 512) | 2.97e-06 | — |
+| double-stream block (S = 320) | 2.86e-06 | — |
+| **full DiT forward** (25 blocks, 256 img + 64 txt tokens) | **2.52e-05** | **1.000000** |
+
+The full-forward test loads the entire checkpoint (3.876B params, ~15.5
+GB f32 in host RAM) and runs on CPU — at f32 the weights don't fit
+resident on a 16 GB GPU alongside activations, which is exactly the
+bf16 storage motivation ([r-xla/anvl#379](https://github.com/r-xla/anvl/issues/379)).
+Per-block GPU timing is below.
 
 **Benchmark** (S = 4608, batch 1, steady-state ms/iter, RTX 5060 Ti
 16GB, driver 595.71.05):
@@ -90,8 +103,10 @@ final result is `await()`ed inside the timed region.
 #    Expected sha256: 028cb8a0a47b51d669789dfe4a2146fdb4fcc35806bf4d587c115038b0384281
 r tools/gen_fixture_flux2_block.R
 
-# 2. Parity (expected: max 2.97e-06, mean 1.24e-07)
-r -l yunque,tinytest -e 'Sys.setenv(TT_AT_HOME = "TRUE"); tinytest::run_test_file("inst/tinytest/test_flux2_block.R")'
+# 2. Parity: single block, double block, and the full DiT forward.
+#    The forward test needs the full checkpoint in your HF cache and
+#    tools/gen_fixture_flux2_forward.R run once first.
+r -l yunque,tinytest -e 'Sys.setenv(TT_AT_HOME = "TRUE"); for (t in c("test_flux2_block.R","test_flux2_double.R","test_flux2_forward.R")) tinytest::run_test_file(file.path("inst/tinytest", t))'
 
 # 3. Benchmarks
 r tools/bench_flux2_block_torch.R float32 4608 cuda

@@ -117,6 +117,19 @@ yq_linear <- function(x, w_t, bias = NULL, precision = "highest") {
     anvl::nv_reshape(y, out_shape)
 }
 
+# Static slice [from, to] (1-based inclusive) along one dimension,
+# keeping all others whole.
+.yq_slice_dim <- function(x, dim, from, to) {
+    s <- anvl::shape(x)
+    nd <- length(s)
+    start <- rep(1L, nd)
+    start[dim] <- as.integer(from)
+    limit <- as.integer(s)
+    limit[dim] <- as.integer(to)
+    anvl::nv_static_slice(x, start_indices = start, limit_indices = limit,
+                          strides = rep(1L, nd))
+}
+
 #' Slice a contiguous range along the last dimension
 #'
 #' @param x AnvlArray.
@@ -125,12 +138,19 @@ yq_linear <- function(x, w_t, bias = NULL, precision = "highest") {
 #'
 #' @export
 yq_slice_lastdim <- function(x, from, to) {
-    s <- anvl::shape(x)
-    nd <- length(s)
-    start <- rep(1L, nd)
-    start[nd] <- as.integer(from)
-    limit <- as.integer(s)
-    limit[nd] <- as.integer(to)
-    anvl::nv_static_slice(x, start_indices = start, limit_indices = limit,
-                          strides = rep(1L, nd))
+    .yq_slice_dim(x, length(anvl::shape(x)), from, to)
+}
+
+#' Slice a contiguous range along the sequence dimension (dim 2)
+#'
+#' For \code{[B, S, D]} tensors: split text/image token spans of a
+#' concatenated sequence.
+#'
+#' @param x AnvlArray \code{[B, S, ...]}.
+#' @param from Integer. 1-based inclusive start.
+#' @param to Integer. 1-based inclusive end.
+#'
+#' @export
+yq_slice_seq <- function(x, from, to) {
+    .yq_slice_dim(x, 2L, from, to)
 }
