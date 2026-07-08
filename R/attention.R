@@ -12,17 +12,65 @@
 #'   Ignored on anvl 0.3.0, whose \code{nv_matmul} has no precision
 #'   parameter (and whose CUDA dots run TF32 regardless).
 #'
+#' @param mask AnvlArray additive bias broadcast to the score shape
+#'   \code{[B, H, Sq, Sk]} (e.g. causal + padding), or NULL.
+#'
 #' @return AnvlArray \code{[B, H, Sq, D]}.
 #'
 #' @export
-yq_sdpa <- function(query, key, value, precision = "highest") {
+yq_sdpa <- function(query, key, value, mask = NULL, precision = "highest") {
     nd <- anvl::ndims(query)
     d <- anvl::shape(query)[nd]
     perm <- seq_len(nd)
     perm[c(nd - 1L, nd)] <- perm[c(nd, nd - 1L)]
     scores <- .yq_matmul(query, anvl::nv_transpose(key, perm),
                          precision = precision) * (1 / sqrt(d))
+    if (!is.null(mask)) {
+        scores <- scores + anvl::nv_broadcast_to(mask, anvl::shape(scores))
+    }
     .yq_matmul(yq_softmax(scores), value, precision = precision)
+}
+
+#' Apply split-half rotary embeddings (Llama/Qwen convention)
+#'
+#' Rotates pairs formed by splitting the last dimension in half: element
+#' i pairs with element i + D/2 (\code{rotate_half}). Distinct from the
+#' interleaved-pair \code{\link{yq_rope_apply}} used by FLUX.
+#'
+#' @param x AnvlArray \code{[B, H, S, D]}, D even.
+#' @param cos AnvlArray broadcastable to \code{[B, H, S, D/2]}.
+#' @param sin AnvlArray broadcastable to \code{[B, H, S, D/2]}.
+#'
+#' @export
+yq_rope_split <- function(x, cos, sin) {
+    d <- anvl::shape(x)[anvl::ndims(x)]
+    r <- d %/% 2L
+    first <- yq_slice_lastdim(x, 1L, r)
+    second <- yq_slice_lastdim(x, r + 1L, 2L * r)
+    out_first <- first * cos - second * sin
+    out_second <- second * cos + first * sin
+    anvl::nv_concatenate(out_first, out_second,
+                         dimension = anvl::ndims(x))
+}
+
+#' Repeat KV heads to match query heads (grouped-query attention)
+#'
+#' Interleaved expansion (\code{repeat_interleave} over the head dim):
+#' each KV head is repeated \code{groups} times consecutively, so head
+#' \code{j} of the query maps to KV head \code{floor(j / groups)}.
+#'
+#' @param x AnvlArray \code{[B, KV, S, D]}.
+#' @param groups Integer. Query heads per KV head.
+#'
+#' @return AnvlArray \code{[B, KV * groups, S, D]}.
+#'
+#' @export
+yq_repeat_kv <- function(x, groups) {
+    if (groups == 1L) return(x)
+    s <- anvl::shape(x)
+    x <- anvl::nv_unsqueeze(x, 3L)                       # [B, KV, 1, S, D]
+    x <- anvl::nv_broadcast_to(x, c(s[1L], s[2L], groups, s[3L], s[4L]))
+    anvl::nv_reshape(x, c(s[1L], s[2L] * groups, s[3L], s[4L]))
 }
 
 #' Apply rotary position embeddings (interleaved pairs)

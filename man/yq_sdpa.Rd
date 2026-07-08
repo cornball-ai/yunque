@@ -3,7 +3,7 @@
 \alias{yq_sdpa}
 \title{Scaled dot-product attention}
 \usage{
-yq_sdpa(query, key, value, precision = "highest")
+yq_sdpa(query, key, value, mask = NULL, precision = "highest")
 }
 \arguments{
 \item{query}{AnvlArray \code{[B, H, S, D]}.}
@@ -11,6 +11,9 @@ yq_sdpa(query, key, value, precision = "highest")
 \item{key}{AnvlArray \code{[B, H, S, D]}.}
 
 \item{value}{AnvlArray \code{[B, H, S, D]}.}
+
+\item{mask}{AnvlArray additive bias broadcast to the score shape
+\code{[B, H, Sq, Sk]} (e.g. causal + padding), or NULL.}
 
 \item{precision}{Character. Matmul precision; the \code{"highest"}
 default forbids TF32-style downgrades so f32 is honest f32.

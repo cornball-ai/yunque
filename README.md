@@ -33,7 +33,9 @@ pak::pak("cornball-ai/yunque")
 | `yq_slice_lastdim()`, `yq_slice_seq()` | Static slicing for fused-projection and text/image splits |
 | `yq_flux2_single_block()`, `yq_flux2_double_block()` | FLUX.2 Klein single- and double-stream blocks as jit-ready closures |
 | `yq_flux2_transformer()` | The full FLUX.2 Klein DiT forward (5 double + 20 single blocks) |
-| `yq_flux2_load_weights()`, `yq_read_safetensors()` | bf16→f32 checkpoint loader (base R, no torch) into the weights pytree |
+| `yq_qwen3_encoder()` | The FLUX.2 Klein text encoder: Qwen3-4B decoder stack (GQA, split RoPE, causal+padding mask), mid-stack states concatenated |
+| `yq_rope_split()`, `yq_repeat_kv()` | Llama/Qwen split-half RoPE and grouped-query KV expansion |
+| `yq_flux2_load_weights()`, `yq_qwen3_load_weights()`, `yq_read_safetensors()` | bf16→f32 checkpoint loaders (base R, no torch; sharded-aware) into weights pytrees |
 
 anvl binary ops broadcast scalars only — no implicit numpy/torch-style
 shape broadcasting. These helpers wrap every reduction-feeds-binary-op
@@ -52,13 +54,20 @@ from your local HuggingFace cache; nothing is redistributed here.
 
 | Unit | Max abs diff | Correlation |
 |---|---|---|
-| single-stream block (S = 512) | 2.97e-06 | — |
-| double-stream block (S = 320) | 2.86e-06 | — |
+| DiT single-stream block (S = 512) | 2.97e-06 | — |
+| DiT double-stream block (S = 320) | 2.86e-06 | — |
 | **full DiT forward** (25 blocks, 256 img + 64 txt tokens) | **2.52e-05** | **1.000000** |
+| **full Qwen3-4B text encoder** (27 layers, S = 32) | **9.8e-04** (rel 2.8e-05) | **1.000000** |
 
-The full-forward test loads the entire checkpoint (3.876B params, ~15.5
-GB f32 in host RAM) and runs on CPU — at f32 the weights don't fit
-resident on a 16 GB GPU alongside activations, which is exactly the
+Both the FLUX.2 Klein DiT and its Qwen3-4B text encoder are ported and
+exact to f32 tolerance. The text encoder's output (mid-stack states
+9/18/27 concatenated → 3 × 2560 = 7680) is exactly the DiT's
+`joint_attention_dim` context input, so the conditioning → denoising
+half of text-to-image runs entirely on anvl.
+
+Both full-model tests load their checkpoints (DiT 3.876B params ~15.5 GB
+f32; text encoder 27 layers) and run on CPU — at f32 the weights don't
+fit resident on a 16 GB GPU alongside activations, which is exactly the
 bf16 storage motivation ([r-xla/anvl#379](https://github.com/r-xla/anvl/issues/379)).
 Per-block GPU timing is below.
 

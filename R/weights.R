@@ -8,11 +8,40 @@
     list(con = con, header = header, data_start = 8 + header_len)
 }
 
+# Open a sharded safetensors directory (model.safetensors.index.json +
+# model-000NN-of-000MM.safetensors). Returns a virtual handle whose
+# $header/$read dispatch to the right shard by key. .yq_st_read works
+# unchanged on either handle.
+.yq_st_open_sharded <- function(dir) {
+    idx <- jsonlite::fromJSON(file.path(dir, "model.safetensors.index.json"),
+                              simplifyVector = TRUE)
+    wm <- idx$weight_map
+    shards <- unique(unlist(wm))
+    sts <- lapply(shards, function(s) .yq_st_open(file.path(dir, s)))
+    names(sts) <- shards
+    header <- do.call(c, lapply(sts, function(st) st$header))
+    key_shard <- unlist(wm)
+    structure(list(sts = sts, header = header, key_shard = key_shard,
+                   sharded = TRUE), class = "yq_sharded")
+}
+
+.yq_st_close <- function(st) {
+    if (isTRUE(st$sharded)) {
+        for (s in st$sts) close(s$con)
+    } else {
+        close(st$con)
+    }
+}
+
 # Read one tensor as an R array. BF16 upcasts to f32 exactly (bf16 is
 # the top half of an f32). transpose: return 2-D tensors transposed,
 # which is free — a row-major [out, in] checkpoint matrix read
 # column-major already IS the [in, out] logical transpose.
 .yq_st_read <- function(st, key, transpose = FALSE) {
+    if (isTRUE(st$sharded)) {
+        sub <- st$sts[[st$key_shard[[key]]]]
+        return(.yq_st_read(sub, key, transpose = transpose))
+    }
     meta <- st$header[[key]]
     if (is.null(meta)) stop("key not in file: ", key)
     shape <- as.integer(unlist(meta$shape))
@@ -138,4 +167,52 @@ yq_flux2_load_weights <- function(path, num_layers = 5L,
     })
 
     w
+}
+
+#' Load Qwen3-4B text-encoder weights for FLUX.2 into an anvl pytree
+#'
+#' Reads the sharded \code{text_encoder} checkpoint (bf16 upcast to f32).
+#' The embedding table stays an R matrix for host-side gather
+#' (\code{\link{yq_qwen3_embed}}); only the first \code{n_layers} decoder
+#' layers are loaded (klein consumes mid-stack states, so the deeper
+#' layers and the tied LM head are never needed). Each tensor is wrapped
+#' as an \code{AnvlArray} as it is read, freeing the R copy.
+#'
+#' @param dir The \code{text_encoder} directory (index + shards).
+#' @param n_layers Integer. Decoder layers to load (klein: 27, enough
+#'   for out_layers up to 27).
+#' @param device Character. Target device.
+#'
+#' @return List \code{list(embed = <R matrix [vocab, hidden]>,
+#'   layers = <list of per-layer weight lists>)}.
+#'
+#' @export
+yq_qwen3_load_weights <- function(dir, n_layers = 27L, device = "cpu") {
+    st <- .yq_st_open_sharded(dir)
+    on.exit(.yq_st_close(st))
+    lin <- function(key) anvl::nv_array(.yq_st_read(st, key, transpose = TRUE),
+                                        dtype = "f32", device = device)
+    vec <- function(key) anvl::nv_array(.yq_st_read(st, key),
+                                        dtype = "f32", device = device)
+
+    embed <- .yq_st_read(st, "model.embed_tokens.weight")   # [vocab, hidden]
+
+    layers <- lapply(seq_len(n_layers) - 1L, function(i) {
+        p <- sprintf("model.layers.%d.", i)
+        list(
+            in_ln = vec(paste0(p, "input_layernorm.weight")),
+            post_ln = vec(paste0(p, "post_attention_layernorm.weight")),
+            q_proj = lin(paste0(p, "self_attn.q_proj.weight")),
+            k_proj = lin(paste0(p, "self_attn.k_proj.weight")),
+            v_proj = lin(paste0(p, "self_attn.v_proj.weight")),
+            o_proj = lin(paste0(p, "self_attn.o_proj.weight")),
+            q_norm = vec(paste0(p, "self_attn.q_norm.weight")),
+            k_norm = vec(paste0(p, "self_attn.k_norm.weight")),
+            gate = lin(paste0(p, "mlp.gate_proj.weight")),
+            up = lin(paste0(p, "mlp.up_proj.weight")),
+            down = lin(paste0(p, "mlp.down_proj.weight"))
+        )
+    })
+
+    list(embed = embed, layers = layers)
 }
