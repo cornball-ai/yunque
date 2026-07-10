@@ -34,6 +34,7 @@ pak::pak("cornball-ai/yunque")
 | `yq_flux2_single_block()`, `yq_flux2_double_block()` | FLUX.2 Klein single- and double-stream blocks as jit-ready closures |
 | `yq_flux2_transformer()` | The full FLUX.2 Klein DiT forward (5 double + 20 single blocks) |
 | `yq_qwen3_encoder()` | The FLUX.2 Klein text encoder: Qwen3-4B decoder stack (GQA, split RoPE, causal+padding mask), mid-stack states concatenated |
+| `yq_flux2_sample()`, `yq_flux2_sigmas()` | The FlowMatch Euler denoising loop and its dynamic-shift sigma schedule (guidance-free, 4 steps) |
 | `yq_rope_split()`, `yq_repeat_kv()` | Llama/Qwen split-half RoPE and grouped-query KV expansion |
 | `yq_flux2_load_weights()`, `yq_qwen3_load_weights()`, `yq_read_safetensors()` | bf16→f32 checkpoint loaders (base R, no torch; sharded-aware) into weights pytrees |
 
@@ -58,12 +59,15 @@ from your local HuggingFace cache; nothing is redistributed here.
 | DiT double-stream block (S = 320) | 2.86e-06 | — |
 | **full DiT forward** (25 blocks, 256 img + 64 txt tokens) | **2.52e-05** | **1.000000** |
 | **full Qwen3-4B text encoder** (27 layers, S = 32) | **9.8e-04** (rel 2.8e-05) | **1.000000** |
+| **end-to-end text → latent** (encoder → DiT → 4-step loop) | **6.4e-05** | **1.000000** |
 
-Both the FLUX.2 Klein DiT and its Qwen3-4B text encoder are ported and
-exact to f32 tolerance. The text encoder's output (mid-stack states
-9/18/27 concatenated → 3 × 2560 = 7680) is exactly the DiT's
-`joint_attention_dim` context input, so the conditioning → denoising
-half of text-to-image runs entirely on anvl.
+The whole conditioning → denoising path — tokens through the Qwen3-4B
+encoder (mid-stack states 9/18/27 concatenated → 3 × 2560 = 7680, which
+is exactly the DiT's `joint_attention_dim`), then the DiT under a 4-step
+guidance-free FlowMatch Euler loop — runs entirely on anvl and matches
+the diffuseR torch reference to f32 tolerance. The only missing stage
+for pixels is the VAE decode, which needs convolution
+([r-xla/stablehlo#161](https://github.com/r-xla/stablehlo/pull/161)).
 
 Both full-model tests load their checkpoints (DiT 3.876B params ~15.5 GB
 f32; text encoder 27 layers) and run on CPU — at f32 the weights don't
