@@ -216,3 +216,92 @@ yq_qwen3_load_weights <- function(dir, n_layers = 27L, device = "cpu") {
 
     list(embed = embed, layers = layers)
 }
+
+#' Load FLUX.2 VAE decoder weights into an anvl pytree
+#'
+#' Reads the decoder half of the \code{AutoencoderKLFlux2} checkpoint
+#' (bf16 upcast to f32): \code{post_quant_conv}, the decoder body, the
+#' output head, and the BatchNorm latent statistics. Conv weights are
+#' loaded in torch \code{[out, in, kH, kW]} layout (what
+#' \code{nv_conv2d} expects); the attention linears are transposed to
+#' \code{[in, out]} for \code{yq_linear}. Encoder / quant_conv keys are
+#' skipped (txt2img needs only the decode path).
+#'
+#' @param path Path to \code{vae/diffusion_pytorch_model.safetensors}.
+#' @param device Character. Target device.
+#'
+#' @return VAE weights pytree; \code{bn_mean}/\code{bn_var} are returned
+#'   as R vectors for host-side de-normalization
+#'   (\code{\link{yq_flux2_vae_prepare}}).
+#'
+#' @export
+yq_flux2_load_vae <- function(path, device = "cpu") {
+    st <- .yq_st_open(path)
+    on.exit(close(st$con))
+    raw <- function(key) anvl::nv_array(.yq_st_read(st, key),
+                                        dtype = "f32", device = device)
+    lin <- function(key) anvl::nv_array(.yq_st_read(st, key, transpose = TRUE),
+                                        dtype = "f32", device = device)
+    has <- function(key) !is.null(st$header[[key]])
+
+    resnet <- function(p) {
+        r <- list(
+            norm1_w = raw(paste0(p, "norm1.weight")),
+            norm1_b = raw(paste0(p, "norm1.bias")),
+            conv1_w = raw(paste0(p, "conv1.weight")),
+            conv1_b = raw(paste0(p, "conv1.bias")),
+            norm2_w = raw(paste0(p, "norm2.weight")),
+            norm2_b = raw(paste0(p, "norm2.bias")),
+            conv2_w = raw(paste0(p, "conv2.weight")),
+            conv2_b = raw(paste0(p, "conv2.bias"))
+        )
+        if (has(paste0(p, "conv_shortcut.weight"))) {
+            r$shortcut_w <- raw(paste0(p, "conv_shortcut.weight"))
+            r$shortcut_b <- raw(paste0(p, "conv_shortcut.bias"))
+        }
+        r
+    }
+
+    dp <- "decoder."
+    w <- list(
+        post_quant_w = raw("post_quant_conv.weight"),
+        post_quant_b = raw("post_quant_conv.bias"),
+        conv_in_w = raw(paste0(dp, "conv_in.weight")),
+        conv_in_b = raw(paste0(dp, "conv_in.bias")),
+        norm_out_w = raw(paste0(dp, "conv_norm_out.weight")),
+        norm_out_b = raw(paste0(dp, "conv_norm_out.bias")),
+        conv_out_w = raw(paste0(dp, "conv_out.weight")),
+        conv_out_b = raw(paste0(dp, "conv_out.bias")),
+        bn_mean = .yq_st_read(st, "bn.running_mean"),
+        bn_var = .yq_st_read(st, "bn.running_var")
+    )
+
+    mp <- paste0(dp, "mid_block.")
+    ap <- paste0(mp, "attentions.0.")
+    w$mid <- list(
+        resnet1 = resnet(paste0(mp, "resnets.0.")),
+        resnet2 = resnet(paste0(mp, "resnets.1.")),
+        attn = list(
+            gn_w = raw(paste0(ap, "group_norm.weight")),
+            gn_b = raw(paste0(ap, "group_norm.bias")),
+            q_w = lin(paste0(ap, "to_q.weight")), q_b = raw(paste0(ap, "to_q.bias")),
+            k_w = lin(paste0(ap, "to_k.weight")), k_b = raw(paste0(ap, "to_k.bias")),
+            v_w = lin(paste0(ap, "to_v.weight")), v_b = raw(paste0(ap, "to_v.bias")),
+            out_w = lin(paste0(ap, "to_out.0.weight")),
+            out_b = raw(paste0(ap, "to_out.0.bias"))
+        )
+    )
+
+    w$up_blocks <- lapply(0:3, function(i) {
+        bp <- sprintf("%sup_blocks.%d.", dp, i)
+        blk <- list(resnets = lapply(0:2, function(j)
+            resnet(sprintf("%sresnets.%d.", bp, j))))
+        if (has(paste0(bp, "upsamplers.0.conv.weight"))) {
+            blk$up_conv_w <- raw(paste0(bp, "upsamplers.0.conv.weight"))
+            blk$up_conv_b <- raw(paste0(bp, "upsamplers.0.conv.bias"))
+        }
+        blk
+    })
+
+    w
+}

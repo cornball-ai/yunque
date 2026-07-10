@@ -36,7 +36,9 @@ pak::pak("cornball-ai/yunque")
 | `yq_qwen3_encoder()` | The FLUX.2 Klein text encoder: Qwen3-4B decoder stack (GQA, split RoPE, causal+padding mask), mid-stack states concatenated |
 | `yq_flux2_sample()`, `yq_flux2_sigmas()` | The FlowMatch Euler denoising loop and its dynamic-shift sigma schedule (guidance-free, 4 steps) |
 | `yq_rope_split()`, `yq_repeat_kv()` | Llama/Qwen split-half RoPE and grouped-query KV expansion |
-| `yq_flux2_load_weights()`, `yq_qwen3_load_weights()`, `yq_read_safetensors()` | bf16→f32 checkpoint loaders (base R, no torch; sharded-aware) into weights pytrees |
+| `yq_flux2_vae_decode()`, `yq_flux2_vae_prepare()` | AutoencoderKLFlux2 decoder (ResNet/attention/upsample blocks) and the unpack + BN-denorm + unpatchify glue |
+| `yq_group_norm()`, `yq_upsample_nearest2d()` | GroupNorm and nearest-2× upsampling over NCHW |
+| `yq_flux2_load_weights()`, `yq_qwen3_load_weights()`, `yq_flux2_load_vae()`, `yq_read_safetensors()` | bf16→f32 checkpoint loaders (base R, no torch; sharded-aware) into weights pytrees |
 
 anvl binary ops broadcast scalars only — no implicit numpy/torch-style
 shape broadcasting. These helpers wrap every reduction-feeds-binary-op
@@ -60,14 +62,21 @@ from your local HuggingFace cache; nothing is redistributed here.
 | **full DiT forward** (25 blocks, 256 img + 64 txt tokens) | **2.52e-05** | **1.000000** |
 | **full Qwen3-4B text encoder** (27 layers, S = 32) | **9.8e-04** (rel 2.8e-05) | **1.000000** |
 | **end-to-end text → latent** (encoder → DiT → 4-step loop) | **6.4e-05** | **1.000000** |
+| **VAE decoder** (AutoencoderKLFlux2, 32-ch → RGB) | **4.7e-06** | **1.000000** |
+| **full text → pixels** (encoder → DiT → loop → VAE) | **1.3e-05** | **1.000000** |
 
-The whole conditioning → denoising path — tokens through the Qwen3-4B
-encoder (mid-stack states 9/18/27 concatenated → 3 × 2560 = 7680, which
-is exactly the DiT's `joint_attention_dim`), then the DiT under a 4-step
-guidance-free FlowMatch Euler loop — runs entirely on anvl and matches
-the diffuseR torch reference to f32 tolerance. The only missing stage
-for pixels is the VAE decode, which needs convolution
-([r-xla/stablehlo#161](https://github.com/r-xla/stablehlo/pull/161)).
+**The entire FLUX.2 Klein text-to-image pipeline runs on anvl** and
+matches the diffuseR torch reference to f32 tolerance end to end:
+tokens through the Qwen3-4B encoder (mid-stack states 9/18/27
+concatenated → 3 × 2560 = 7680, the DiT's `joint_attention_dim`), the
+DiT under a 4-step guidance-free FlowMatch Euler loop, then the
+AutoencoderKLFlux2 decoder (via `nv_conv2d`) to RGB pixels.
+
+The VAE needs convolution, which is not yet in a released anvl — it
+depends on the `hlo_convolution` op
+([r-xla/stablehlo#161](https://github.com/r-xla/stablehlo/pull/161))
+plus a downstream `prim_convolution`/`nv_conv2d` in anvl. Until those
+land, the VAE stage requires those branches installed.
 
 Both full-model tests load their checkpoints (DiT 3.876B params ~15.5 GB
 f32; text encoder 27 layers) and run on CPU — at f32 the weights don't

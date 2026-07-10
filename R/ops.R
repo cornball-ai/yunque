@@ -141,6 +141,51 @@ yq_slice_lastdim <- function(x, from, to) {
     .yq_slice_dim(x, length(anvl::shape(x)), from, to)
 }
 
+#' Group normalization over [B, C, H, W]
+#'
+#' Normalizes within \code{num_groups} channel groups (over the group's
+#' channels and all spatial positions), then applies a per-channel
+#' affine. Matches \code{torch::nn_group_norm}.
+#'
+#' @param x AnvlArray \code{[B, C, H, W]}.
+#' @param weight AnvlArray \code{[C]} scale.
+#' @param bias AnvlArray \code{[C]} shift.
+#' @param num_groups Integer.
+#' @param eps Numeric.
+#'
+#' @export
+yq_group_norm <- function(x, weight, bias, num_groups = 32L, eps = 1e-6) {
+    s <- anvl::shape(x)
+    b <- s[1L]; c <- s[2L]; h <- s[3L]; w <- s[4L]
+    g <- as.integer(num_groups)
+    per <- (c %/% g) * h * w
+    xg <- anvl::nv_reshape(x, c(b, g, per))
+    mu <- anvl::nv_reduce_sum(xg, dims = 3L, drop = FALSE) / per
+    xc <- xg - anvl::nv_broadcast_to(mu, c(b, g, per))
+    v <- anvl::nv_reduce_sum(xc * xc, dims = 3L, drop = FALSE) / per
+    xn <- xc * anvl::nv_broadcast_to(anvl::nv_rsqrt(v + eps), c(b, g, per))
+    xn <- anvl::nv_reshape(xn, c(b, c, h, w))
+    aff <- function(p) anvl::nv_broadcast_to(anvl::nv_reshape(p, c(1L, c, 1L, 1L)),
+                                             c(b, c, h, w))
+    xn * aff(weight) + aff(bias)
+}
+
+#' Nearest-neighbour 2x upsampling over [B, C, H, W]
+#'
+#' Each pixel becomes a 2x2 block (matches
+#' \code{nnf_interpolate(scale_factor = 2, mode = "nearest")}).
+#'
+#' @param x AnvlArray \code{[B, C, H, W]}.
+#'
+#' @export
+yq_upsample_nearest2d <- function(x) {
+    s <- anvl::shape(x)
+    b <- s[1L]; c <- s[2L]; h <- s[3L]; w <- s[4L]
+    x <- anvl::nv_reshape(x, c(b, c, h, 1L, w, 1L))
+    x <- anvl::nv_broadcast_to(x, c(b, c, h, 2L, w, 2L))
+    anvl::nv_reshape(x, c(b, c, h * 2L, w * 2L))
+}
+
 #' Slice a contiguous range along the sequence dimension (dim 2)
 #'
 #' For \code{[B, S, D]} tensors: split text/image token spans of a
