@@ -15,6 +15,6 @@ Description: Composable neural-network operations on top of the anvl
     weight loading with float32 upcast. The forge accessory for the
     anvil.
 License: MIT + file LICENSE
-Imports: anvl
-Suggests: tinytest, jsonlite
+Imports: anvl, jsonlite
+Suggests: tinytest
 Encoding: UTF-8

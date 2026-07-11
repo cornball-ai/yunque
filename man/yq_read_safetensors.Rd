@@ -18,7 +18,6 @@ layout \code{\link{yq_linear}} wants).}
 Named list of R arrays/vectors (doubles, exact f32 values).
 }
 \description{
-Minimal safetensors reader supporting BF16 and F32 payloads, no torch
-dependency. Reads only the requested keys, so pulling a few tensors
-out of a multi-GB checkpoint is cheap.
+Convenience wrapper over \code{\link{yq_st_read}}: BF16/F32 payloads,
+no torch dependency, reads only the requested keys.
 }
