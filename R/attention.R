@@ -12,23 +12,51 @@
 #'   Ignored on anvl 0.3.0, whose \code{nv_matmul} has no precision
 #'   parameter (and whose CUDA dots run TF32 regardless).
 #'
-#' @param mask AnvlArray additive bias broadcast to the score shape
-#'   \code{[B, H, Sq, Sk]} (e.g. causal + padding), or NULL.
+#' @param mask AnvlArray additive bias added to the (scaled) scores,
+#'   broadcast to the score shape \code{[B, H, Sq, Sk]} — a causal /
+#'   padding mask, or a learned bias (e.g. T5 relative-position bias).
+#'   NULL for none.
+#' @param scale Numeric score scale. NULL (default) uses
+#'   \code{1 / sqrt(head_dim)}; pass \code{1} for the unscaled attention
+#'   T5 uses (its relative-position bias is added to raw \code{qk^T}).
 #'
 #' @return AnvlArray \code{[B, H, Sq, D]}.
 #'
 #' @export
-yq_sdpa <- function(query, key, value, mask = NULL, precision = "highest") {
+yq_sdpa <- function(query, key, value, mask = NULL, scale = NULL,
+                    precision = "highest") {
     nd <- anvl::ndims(query)
     d <- anvl::shape(query)[nd]
+    if (is.null(scale)) scale <- 1 / sqrt(d)
     perm <- seq_len(nd)
     perm[c(nd - 1L, nd)] <- perm[c(nd, nd - 1L)]
     scores <- .yq_matmul(query, anvl::nv_transpose(key, perm),
-                         precision = precision) * (1 / sqrt(d))
+                         precision = precision) * scale
     if (!is.null(mask)) {
         scores <- scores + anvl::nv_broadcast_to(mask, anvl::shape(scores))
     }
     .yq_matmul(yq_softmax(scores), value, precision = precision)
+}
+
+#' GELU activation
+#'
+#' Gaussian Error Linear Unit. The \code{"tanh"} approximation
+#' (transformers' \code{gelu_new}) is what T5, Gemma, FLUX feed-forwards,
+#' and most GELU transformer ports actually use; \code{"none"} is the
+#' exact erf form.
+#'
+#' @param x AnvlArray.
+#' @param approximate Character. \code{"tanh"} (default) or \code{"none"}.
+#'
+#' @export
+yq_gelu <- function(x, approximate = c("tanh", "none")) {
+    approximate <- match.arg(approximate)
+    if (approximate == "tanh") {
+        inner <- (x + x * x * x * 0.044715) * sqrt(2 / pi)
+        x * 0.5 * (anvl::nv_tanh(inner) + 1)
+    } else {
+        x * 0.5 * (anvl::nv_erf(x * (1 / sqrt(2))) + 1)
+    }
 }
 
 #' Apply split-half rotary embeddings (Llama/Qwen convention)
