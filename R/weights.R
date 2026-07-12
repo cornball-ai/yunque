@@ -98,6 +98,12 @@ yq_st_read <- function(st, key, transpose = FALSE) {
                    F16 = .yq_half_to_float(
         readBin(st$con, "integer", n = n, size = 2L, signed = FALSE,
                 endian = "little")),
+                   F8_E4M3 = .yq_fp8e4m3_to_float(
+        readBin(st$con, "integer", n = n, size = 1L, signed = FALSE,
+                endian = "little")),
+                   F8_E5M2 = .yq_fp8e5m2_to_float(
+        readBin(st$con, "integer", n = n, size = 1L, signed = FALSE,
+                endian = "little")),
                    stop("unsupported dtype ", meta$dtype, " for ", key))
     if (length(shape) <= 1L) {
         vals
@@ -107,6 +113,38 @@ yq_st_read <- function(st, key, transpose = FALSE) {
     } else {
         aperm(array(vals, dim = rev(shape)), rev(seq_along(shape)))
     }
+}
+
+# Vectorized float8 E4M3FN -> double. Input: uint8 codes.
+# sign(1) exp(4, bias 7) mantissa(3); finite variant (no inf; the single
+# NaN code is exp=15,mant=7). Max normal 448.
+.yq_fp8e4m3_to_float <- function(b) {
+    sign <- ifelse(bitwShiftR(b, 7L) == 1L, -1, 1)
+    exp <- bitwAnd(bitwShiftR(b, 3L), 0xfL)
+    mant <- bitwAnd(b, 0x7L)
+    val <- numeric(length(b))
+    norm <- exp > 0L
+    val[norm] <- (1 + mant[norm] / 8) * 2^(exp[norm] - 7L)
+    sub <- exp == 0L
+    val[sub] <- (mant[sub] / 8) * 2^(-6)
+    val[exp == 15L & mant == 7L] <- NaN
+    sign * val
+}
+
+# Vectorized float8 E5M2 -> double. Input: uint8 codes.
+# sign(1) exp(5, bias 15) mantissa(2); has inf/nan like IEEE.
+.yq_fp8e5m2_to_float <- function(b) {
+    sign <- ifelse(bitwShiftR(b, 7L) == 1L, -1, 1)
+    exp <- bitwAnd(bitwShiftR(b, 2L), 0x1fL)
+    mant <- bitwAnd(b, 0x3L)
+    val <- numeric(length(b))
+    norm <- exp > 0L & exp < 31L
+    val[norm] <- (1 + mant[norm] / 4) * 2^(exp[norm] - 15L)
+    sub <- exp == 0L
+    val[sub] <- (mant[sub] / 4) * 2^(-14)
+    val[exp == 31L & mant == 0L] <- Inf
+    val[exp == 31L & mant != 0L] <- NaN
+    sign * val
 }
 
 # Vectorized IEEE-754 half (F16) -> double. Input: uint16 codes.
