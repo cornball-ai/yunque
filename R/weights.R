@@ -59,7 +59,8 @@ yq_st_close <- function(st) {
 
 #' Read one tensor from a safetensors handle as an R array
 #'
-#' BF16 upcasts to f32 exactly (bf16 is the top half of an f32). Reading
+#' F16/BF16 upcast to f32 (BF16 is the top half of an f32; F16 is
+#' true IEEE half, converted per-element). Reading
 #' a single key seeks straight to its bytes, so pulling a few tensors out
 #' of a multi-GB checkpoint is cheap.
 #'
@@ -94,6 +95,9 @@ yq_st_read <- function(st, key, transpose = FALSE) {
         raw4[4L * idx] <- b[2L * idx]
         readBin(raw4, "numeric", n = n, size = 4L, endian = "little")
     },
+                   F16 = .yq_half_to_float(
+        readBin(st$con, "integer", n = n, size = 2L, signed = FALSE,
+                endian = "little")),
                    stop("unsupported dtype ", meta$dtype, " for ", key))
     if (length(shape) <= 1L) {
         vals
@@ -105,10 +109,27 @@ yq_st_read <- function(st, key, transpose = FALSE) {
     }
 }
 
+# Vectorized IEEE-754 half (F16) -> double. Input: uint16 codes.
+# F16 is sign(1) exp(5, bias 15) mantissa(10); handles normal,
+# subnormal, and inf/nan.
+.yq_half_to_float <- function(h) {
+    sign <- ifelse(bitwShiftR(h, 15L) == 1L, -1, 1)
+    exp <- bitwAnd(bitwShiftR(h, 10L), 0x1fL)
+    mant <- bitwAnd(h, 0x3ffL)
+    val <- numeric(length(h))
+    norm <- exp > 0L & exp < 31L
+    val[norm] <- (1 + mant[norm] / 1024) * 2^(exp[norm] - 15L)
+    sub <- exp == 0L
+    val[sub] <- (mant[sub] / 1024) * 2^(-14)
+    val[exp == 31L & mant == 0L] <- Inf
+    val[exp == 31L & mant != 0L] <- NaN
+    sign * val
+}
+
 #' Read safetensors tensors as R arrays (base R, partial reads)
 #'
-#' Convenience wrapper over \code{\link{yq_st_read}}: BF16/F32 payloads,
-#' no torch dependency, reads only the requested keys.
+#' Convenience wrapper over \code{\link{yq_st_read}}: F16/BF16/F32
+#' payloads, no torch dependency, reads only the requested keys.
 #'
 #' @param path Path to a .safetensors file.
 #' @param keys Character vector of tensor names, or NULL for all.

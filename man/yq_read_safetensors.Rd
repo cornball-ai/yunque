@@ -18,6 +18,6 @@ layout \code{\link{yq_linear}} wants).}
 Named list of R arrays/vectors (doubles, exact f32 values).
 }
 \description{
-Convenience wrapper over \code{\link{yq_st_read}}: BF16/F32 payloads,
-no torch dependency, reads only the requested keys.
+Convenience wrapper over \code{\link{yq_st_read}}: F16/BF16/F32
+payloads, no torch dependency, reads only the requested keys.
 }

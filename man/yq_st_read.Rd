@@ -20,7 +20,8 @@ layer wants).}
 An R array / vector of doubles (exact f32 values).
 }
 \description{
-BF16 upcasts to f32 exactly (bf16 is the top half of an f32). Reading
+F16/BF16 upcast to f32 (BF16 is the top half of an f32; F16 is
+true IEEE half, converted per-element). Reading
 a single key seeks straight to its bytes, so pulling a few tensors out
 of a multi-GB checkpoint is cheap.
 }
