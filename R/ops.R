@@ -19,6 +19,73 @@ yq_silu <- function(x) {
     x * anvl::nv_logistic(x)
 }
 
+#' Softplus activation
+#'
+#' \code{log(1 + exp(x))}, computed in the numerically stable form
+#' \code{max(x, 0) + log1p(exp(-|x|))} (matches \code{torch::nnf_softplus}
+#' with the default \code{beta = 1}).
+#'
+#' @param x AnvlArray.
+#'
+#' @export
+yq_softplus <- function(x) {
+    anvl::nv_max(x, 0) +
+    anvl::nv_log1p(anvl::nv_exp(anvl::nv_negate(anvl::nv_abs(x))))
+}
+
+#' Mish activation
+#'
+#' \code{x * tanh(softplus(x))} (Misra 2019); used by chatterbox's CFM
+#' decoder.
+#'
+#' @param x AnvlArray.
+#'
+#' @export
+yq_mish <- function(x) {
+    x * anvl::nv_tanh(yq_softplus(x))
+}
+
+#' ELU activation
+#'
+#' \code{x} for \code{x > 0}, else \code{alpha * (exp(x) - 1)}. Written
+#' branch-free as \code{max(x, 0) + alpha * (exp(min(x, 0)) - 1)} to avoid a
+#' predicated select. Matches \code{torch::nnf_elu}.
+#'
+#' @param x AnvlArray.
+#' @param alpha Numeric. Negative-saturation scale (default 1).
+#'
+#' @export
+yq_elu <- function(x, alpha = 1) {
+    anvl::nv_max(x, 0) + (anvl::nv_exp(anvl::nv_min(x, 0)) - 1) * alpha
+}
+
+#' Snake activation
+#'
+#' \code{x + sin(alpha * x)^2 / (beta + eps)} (Ziyin et al. 2020). The
+#' single-parameter Snake HiFiGAN uses sets \code{beta = alpha}; the
+#' SnakeBeta variant (BigVGAN / LTX vocoders) passes an independent
+#' \code{beta}. \code{alpha}/\code{beta} must be broadcastable to \code{x}
+#' (same rank, size-1 dims expand) -- reshape a per-channel \code{[C]}
+#' parameter to \code{[1, C, 1]} before calling.
+#'
+#' @param x AnvlArray.
+#' @param alpha AnvlArray. Frequency parameter, broadcastable to \code{x}.
+#' @param beta AnvlArray or NULL. Magnitude parameter; NULL reuses
+#'   \code{alpha}.
+#' @param eps Numeric. Guards the reciprocal against division by zero.
+#'
+#' @export
+yq_snake <- function(x, alpha, beta = NULL, eps = 1e-9) {
+    s <- anvl::shape(x)
+    if (is.null(beta)) {
+        beta <- alpha
+    }
+    a <- anvl::nv_broadcast_to(alpha, s)
+    b <- anvl::nv_broadcast_to(beta, s)
+    sn <- anvl::nv_sin(x * a)
+    x + sn * sn / (b + eps)
+}
+
 #' Softmax over the last dimension
 #'
 #' Max-subtracted for stability.
@@ -129,6 +196,46 @@ yq_linear <- function(x, w_t, bias = NULL, precision = "highest") {
         y <- y + anvl::nv_broadcast_to(bias, anvl::shape(y))
     }
     anvl::nv_reshape(y, out_shape)
+}
+
+#' Embedding lookup (host-side gather)
+#'
+#' Gathers rows of an embedding table for the given token ids. The table
+#' stays an R matrix (never resident on device); only the gathered result
+#' crosses to anvl -- ids are host-side integers at the input boundary, so
+#' this sidesteps an on-device gather entirely (the pattern the anvl model
+#' ports use for token/position embeddings).
+#'
+#' @param weight R matrix \code{[num_embeddings, dim]} (e.g. from
+#'   \code{\link{yq_st_read}}).
+#' @param ids Integer vector \code{[N]} or matrix \code{[B, S]} of token ids.
+#' @param zero_based Logical. TRUE (default) treats \code{ids} as 0-based
+#'   (torch convention); FALSE as 1-based R indices.
+#' @param dtype Character. Output dtype.
+#' @param device Character.
+#'
+#' @return AnvlArray \code{[N, dim]} for a vector \code{ids}, or
+#'   \code{[B, S, dim]} for a matrix.
+#'
+#' @export
+yq_embedding <- function(weight, ids, zero_based = TRUE, dtype = "f32",
+                         device = "cpu") {
+    hidden <- ncol(weight)
+    if (zero_based) {
+        off <- 1L
+    } else {
+        off <- 0L
+    }
+    d <- dim(ids)
+    if (is.null(d)) {
+        rows <- weight[as.integer(ids) + off,, drop = FALSE]
+        return(anvl::nv_array(rows, dtype = dtype, device = device))
+    }
+    b <- d[1L]
+    s <- d[2L]
+    rows <- weight[as.integer(t(ids)) + off,, drop = FALSE]
+    arr <- aperm(array(t(rows), dim = c(hidden, s, b)), c(3L, 2L, 1L))
+    anvl::nv_array(arr, dtype = dtype, device = device)
 }
 
 # Static slice [from, to] (1-based inclusive) along one dimension,
