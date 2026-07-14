@@ -35,23 +35,37 @@ yq_softmax <- function(x) {
     e / anvl::nv_broadcast_to(z, s)
 }
 
-#' Layer normalization (no affine) over the last dimension
+#' Layer normalization over the last dimension
 #'
-#' Biased variance, matching \code{torch::nn_layer_norm} with
-#' \code{elementwise_affine = FALSE}.
+#' Biased variance, matching \code{torch::nn_layer_norm}. With
+#' \code{weight} and \code{bias} both NULL it is the affine-free form
+#' (\code{elementwise_affine = FALSE}); pass a length-\code{shape(x)[ndims(x)]}
+#' \code{weight} (and optional \code{bias}) for the standard affine LayerNorm
+#' \code{normalized * weight + bias}.
 #'
 #' @param x AnvlArray.
+#' @param weight AnvlArray of length \code{shape(x)[ndims(x)]}, or NULL for no
+#'   scale.
+#' @param bias AnvlArray of length \code{shape(x)[ndims(x)]}, or NULL for no
+#'   shift.
 #' @param eps Numeric. Stability epsilon.
 #'
 #' @export
-yq_layer_norm <- function(x, eps = 1e-6) {
+yq_layer_norm <- function(x, weight = NULL, bias = NULL, eps = 1e-6) {
     d <- anvl::ndims(x)
     s <- anvl::shape(x)
     n <- s[d]
     mu <- anvl::nv_reduce_sum(x, dims = d, drop = FALSE) / n
     xc <- x - anvl::nv_broadcast_to(mu, s)
     v <- anvl::nv_reduce_sum(xc * xc, dims = d, drop = FALSE) / n
-    xc * anvl::nv_broadcast_to(anvl::nv_rsqrt(v + eps), s)
+    out <- xc * anvl::nv_broadcast_to(anvl::nv_rsqrt(v + eps), s)
+    if (!is.null(weight)) {
+        out <- out * anvl::nv_broadcast_to(weight, s)
+    }
+    if (!is.null(bias)) {
+        out <- out + anvl::nv_broadcast_to(bias, s)
+    }
+    out
 }
 
 #' RMS normalization over the last dimension

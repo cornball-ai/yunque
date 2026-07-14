@@ -23,6 +23,19 @@ ref <- t(apply(x_r, 1, function(r) {
 }))
 expect_true(max(abs(ln - ref)) < 1e-5)
 
+# layer norm with affine weight + bias
+lw_r <- runif(8, 0.5, 1.5)
+lb_r <- rnorm(8)
+lw <- anvl::nv_array(lw_r, dtype = "f32")
+lb <- anvl::nv_array(lb_r, dtype = "f32")
+lna <- as.array(yq_layer_norm(x, weight = lw, bias = lb, eps = 1e-6))
+ref <- t(apply(x_r, 1, function(r) {
+    mu <- mean(r)
+    v <- mean((r - mu)^2)
+    (r - mu) / sqrt(v + 1e-6)
+})) * matrix(lw_r, 6, 8, byrow = TRUE) + matrix(lb_r, 6, 8, byrow = TRUE)
+expect_true(max(abs(lna - ref)) < 1e-5)
+
 # rms norm with weight
 w_r <- runif(8, 0.5, 1.5)
 w <- anvl::nv_array(w_r, dtype = "f32")
