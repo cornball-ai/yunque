@@ -179,8 +179,9 @@ yq_group_norm <- function(x, weight, bias, num_groups = 32L, eps = 1e-6) {
     v <- anvl::nv_reduce_sum(xc * xc, dims = 3L, drop = FALSE) / per
     xn <- xc * anvl::nv_broadcast_to(anvl::nv_rsqrt(v + eps), c(b, g, per))
     xn <- anvl::nv_reshape(xn, c(b, c, h, w))
-    aff <- function(p) anvl::nv_broadcast_to(anvl::nv_reshape(p, c(1L, c, 1L, 1L)),
-                                             c(b, c, h, w))
+    aff <- function(p) anvl::nv_broadcast_to(anvl::nv_reshape(p,
+            c(1L, c, 1L, 1L)),
+        c(b, c, h, w))
     xn * aff(weight) + aff(bias)
 }
 

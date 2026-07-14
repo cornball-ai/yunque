@@ -51,7 +51,9 @@ yq_st_open_sharded <- function(dir) {
 #' @export
 yq_st_close <- function(st) {
     if (isTRUE(st$sharded)) {
-        for (s in st$sts) close(s$con)
+        for (s in st$sts) {
+            close(s$con)
+        }
     } else {
         close(st$con)
     }
@@ -81,35 +83,40 @@ yq_st_read <- function(st, key, transpose = FALSE) {
         return(yq_st_read(sub, key, transpose = transpose))
     }
     meta <- st$header[[key]]
-    if (is.null(meta)) stop("key not in file: ", key)
+    if (is.null(meta)) {
+        stop("key not in file: ", key)
+    }
     shape <- as.integer(unlist(meta$shape))
     n <- prod(shape)
     seek(st$con, st$data_start + meta$data_offsets[[1]])
     vals <- switch(as.character(meta$dtype),
-                   F32 = readBin(st$con, "numeric", n = n, size = 4L,
-                                 endian = "little"),
+                   F32 = readBin(st$con, "numeric", n = n, size = 4L, endian = "little"),
                    BF16 = {
         b <- readBin(st$con, "raw", n = n * 2L)
-        raw4 <- raw(n * 4L); idx <- seq_len(n)
+        raw4 <- raw(n * 4L) ; idx <- seq_len(n)
         raw4[4L * idx - 1L] <- b[2L * idx - 1L]
         raw4[4L * idx] <- b[2L * idx]
         readBin(raw4, "numeric", n = n, size = 4L, endian = "little")
     },
                    F16 = .yq_half_to_float(
-        readBin(st$con, "integer", n = n, size = 2L, signed = FALSE,
-                endian = "little")),
+            readBin(st$con, "integer", n = n, size = 2L, signed = FALSE,
+                    endian = "little")),
                    F8_E4M3 = .yq_fp8e4m3_to_float(
-        readBin(st$con, "integer", n = n, size = 1L, signed = FALSE,
-                endian = "little")),
+            readBin(st$con, "integer", n = n, size = 1L, signed = FALSE,
+                    endian = "little")),
                    F8_E5M2 = .yq_fp8e5m2_to_float(
-        readBin(st$con, "integer", n = n, size = 1L, signed = FALSE,
-                endian = "little")),
+            readBin(st$con, "integer", n = n, size = 1L, signed = FALSE,
+                    endian = "little")),
                    stop("unsupported dtype ", meta$dtype, " for ", key))
     if (length(shape) <= 1L) {
         vals
     } else if (length(shape) == 2L) {
-        m <- matrix(vals, nrow = shape[2L], ncol = shape[1L])  # transpose
-        if (transpose) m else t(m)
+        m <- matrix(vals, nrow = shape[2L], ncol = shape[1L]) # transpose
+        if (transpose) {
+            m
+        } else {
+            t(m)
+        }
     } else {
         aperm(array(vals, dim = rev(shape)), rev(seq_along(shape)))
     }
@@ -124,9 +131,9 @@ yq_st_read <- function(st, key, transpose = FALSE) {
     mant <- bitwAnd(b, 0x7L)
     val <- numeric(length(b))
     norm <- exp > 0L
-    val[norm] <- (1 + mant[norm] / 8) * 2^(exp[norm] - 7L)
+    val[norm] <- (1 + mant[norm] / 8) * 2 ^ (exp[norm] - 7L)
     sub <- exp == 0L
-    val[sub] <- (mant[sub] / 8) * 2^(-6)
+    val[sub] <- (mant[sub] / 8) * 2 ^ (-6)
     val[exp == 15L & mant == 7L] <- NaN
     sign * val
 }
@@ -139,9 +146,9 @@ yq_st_read <- function(st, key, transpose = FALSE) {
     mant <- bitwAnd(b, 0x3L)
     val <- numeric(length(b))
     norm <- exp > 0L & exp < 31L
-    val[norm] <- (1 + mant[norm] / 4) * 2^(exp[norm] - 15L)
+    val[norm] <- (1 + mant[norm] / 4) * 2 ^ (exp[norm] - 15L)
     sub <- exp == 0L
-    val[sub] <- (mant[sub] / 4) * 2^(-14)
+    val[sub] <- (mant[sub] / 4) * 2 ^ (-14)
     val[exp == 31L & mant == 0L] <- Inf
     val[exp == 31L & mant != 0L] <- NaN
     sign * val
@@ -156,9 +163,9 @@ yq_st_read <- function(st, key, transpose = FALSE) {
     mant <- bitwAnd(h, 0x3ffL)
     val <- numeric(length(h))
     norm <- exp > 0L & exp < 31L
-    val[norm] <- (1 + mant[norm] / 1024) * 2^(exp[norm] - 15L)
+    val[norm] <- (1 + mant[norm] / 1024) * 2 ^ (exp[norm] - 15L)
     sub <- exp == 0L
-    val[sub] <- (mant[sub] / 1024) * 2^(-14)
+    val[sub] <- (mant[sub] / 1024) * 2 ^ (-14)
     val[exp == 31L & mant == 0L] <- Inf
     val[exp == 31L & mant != 0L] <- NaN
     sign * val
@@ -181,7 +188,9 @@ yq_st_read <- function(st, key, transpose = FALSE) {
 yq_read_safetensors <- function(path, keys = NULL, transpose_2d = FALSE) {
     st <- yq_st_open(path)
     on.exit(close(st$con))
-    if (is.null(keys)) keys <- names(st$header)
+    if (is.null(keys)) {
+        keys <- names(st$header)
+    }
     out <- lapply(keys, function(k) yq_st_read(st, k, transpose_2d))
     names(out) <- keys
     out
