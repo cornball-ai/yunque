@@ -33,8 +33,8 @@ hann_window <- function(n) {
     n <- 0:(n_fft - 1L)
     basis <- matrix(0, nf * 2L, n_fft)
     for (k in 0:(nf - 1L)) {
-        basis[k + 1L, ] <- cos(2 * pi * k * n / n_fft) * win
-        basis[nf + k + 1L, ] <- -sin(2 * pi * k * n / n_fft) * win
+        basis[k + 1L,] <- cos(2 * pi * k * n / n_fft) * win
+        basis[nf + k + 1L,] <- -sin(2 * pi * k * n / n_fft) * win
     }
     array(basis, c(nf * 2L, 1L, n_fft))
 }
@@ -67,7 +67,11 @@ stft <- function(signal, n_fft, hop_length = n_fft %/% 4L, window = NULL,
                  center = TRUE) {
     s <- anvl::shape(signal)
     batch <- s[1L]
-    win <- if (is.null(window)) rep(1, n_fft) else window
+    if (is.null(window)) {
+        win <- rep(1, n_fft)
+    } else {
+        win <- window
+    }
     basis_r <- .stft_basis(n_fft, win)
     basis <- anvl::nv_array(c(basis_r), dtype = anvl::dtype(signal),
                             shape = dim(basis_r))
@@ -94,8 +98,8 @@ stft <- function(signal, n_fft, hop_length = n_fft %/% 4L, window = NULL,
     }
     basis <- matrix(0, nf * 2L, n_fft)
     for (k in 0:(nf - 1L)) {
-        basis[k + 1L, ] <- (a[k + 1L] / n_fft) * cos(2 * pi * k * n / n_fft) * win
-        basis[nf + k + 1L, ] <- -(a[k + 1L] / n_fft) * sin(2 * pi * k * n / n_fft) * win
+        basis[k + 1L,] <- (a[k + 1L] / n_fft) * cos(2 * pi * k * n / n_fft) * win
+        basis[nf + k + 1L,] <- -(a[k + 1L] / n_fft) * sin(2 * pi * k * n / n_fft) * win
     }
     array(basis, c(nf * 2L, 1L, n_fft))
 }
@@ -105,7 +109,7 @@ stft <- function(signal, n_fft, hop_length = n_fft %/% 4L, window = NULL,
 .window_sumsquare <- function(win, n_fft, hop, frames) {
     len <- (frames - 1L) * hop + n_fft
     env <- numeric(len)
-    w2 <- win^2
+    w2 <- win ^ 2
     for (m in 0:(frames - 1L)) {
         idx <- (m * hop + 1L):(m * hop + n_fft)
         env[idx] <- env[idx] + w2
@@ -120,7 +124,8 @@ stft <- function(signal, n_fft, hop_length = n_fft %/% 4L, window = NULL,
 #' With the same \code{window} used for the forward transform and a COLA
 #' hop, recovers the original signal.
 #'
-#' @param real,imag AnvlArray \code{[batch, n_freqs, n_frames]}.
+#' @param real AnvlArray \code{[batch, n_freqs, n_frames]}. Real part.
+#' @param imag AnvlArray \code{[batch, n_freqs, n_frames]}. Imag part.
 #' @param n_fft Integer. FFT / window size.
 #' @param hop_length Integer. Stride between frames.
 #' @param window Numeric vector of length \code{n_fft}, or NULL for
@@ -138,7 +143,11 @@ istft <- function(real, imag, n_fft, hop_length = n_fft %/% 4L,
     s <- anvl::shape(real)
     batch <- s[1L]
     frames <- s[3L]
-    win <- if (is.null(window)) rep(1, n_fft) else window
+    if (is.null(window)) {
+        win <- rep(1, n_fft)
+    } else {
+        win <- window
+    }
     hop <- as.integer(hop_length)
     spec <- anvl::nv_concatenate(real, imag, dimension = 2L)
     ibasis_r <- .istft_basis(n_fft, win)
@@ -150,8 +159,16 @@ istft <- function(real, imag, n_fft, hop_length = n_fft %/% 4L,
     env <- anvl::nv_array(env_r, dtype = anvl::dtype(real),
                           shape = c(1L, 1L, len_full))
     y <- y / anvl::nv_broadcast_to(env, anvl::shape(y))
-    lo <- if (center) n_fft %/% 2L + 1L else 1L
-    hi <- if (center) len_full - n_fft %/% 2L else len_full
+    if (center) {
+        lo <- n_fft %/% 2L + 1L
+    } else {
+        lo <- 1L
+    }
+    if (center) {
+        hi <- len_full - n_fft %/% 2L
+    } else {
+        hi <- len_full
+    }
     y <- .slice_dim(y, 3L, lo, hi)
     if (!is.null(length)) {
         y <- .slice_dim(y, 3L, 1L, min(as.integer(length), anvl::shape(y)[3L]))
