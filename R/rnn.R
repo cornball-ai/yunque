@@ -76,11 +76,10 @@ lstm <- function(x, layers, batch_first = FALSE) {
         outs <- vector("list", n_seq)
         for (t in seq_len(n_seq)) {
             x_t <- anvl::nv_reshape(
-                anvl::nv_static_slice(x,
-                    start_indices = c(t, 1L, 1L),
+                                    anvl::nv_static_slice(x, start_indices = c(t, 1L, 1L),
                     limit_indices = c(t, batch, indim),
                     strides = c(1L, 1L, 1L)),
-                c(batch, indim))
+                                    c(batch, indim))
             step <- lstm_cell(x_t, h, cc, ly$w_ih, ly$w_hh, ly$b_ih, ly$b_hh)
             h <- step$h
             cc <- step$c
@@ -90,10 +89,14 @@ lstm <- function(x, layers, batch_first = FALSE) {
         h_n[[l]] <- anvl::nv_unsqueeze(h, 1L)
         c_n[[l]] <- anvl::nv_unsqueeze(cc, 1L)
     }
-    output <- if (batch_first) anvl::nv_transpose(x, c(2L, 1L, 3L)) else x
+    if (batch_first) {
+        output <- anvl::nv_transpose(x, c(2L, 1L, 3L))
+    } else {
+        output <- x
+    }
     list(
-        output = output,
-        h_n = do.call(anvl::nv_concatenate, c(h_n, list(dimension = 1L))),
-        c_n = do.call(anvl::nv_concatenate, c(c_n, list(dimension = 1L)))
+         output = output,
+         h_n = do.call(anvl::nv_concatenate, c(h_n, list(dimension = 1L))),
+         c_n = do.call(anvl::nv_concatenate, c(c_n, list(dimension = 1L)))
     )
 }
