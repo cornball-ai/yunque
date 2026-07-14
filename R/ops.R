@@ -292,6 +292,37 @@ group_norm <- function(x, weight, bias, num_groups = 32L, eps = 1e-6) {
     xn * aff(weight) + aff(bias)
 }
 
+#' Batch normalization (inference) over the channel dimension
+#'
+#' Normalizes each channel by its stored running statistics, then applies
+#' an optional per-channel affine: \code{(x - mean) / sqrt(var + eps) *
+#' weight + bias}. Matches \code{torch::nnf_batch_norm} in eval mode.
+#' Channel is dim 2; works for any \code{[N, C, ...]} rank.
+#'
+#' @param x AnvlArray \code{[N, C, ...]}.
+#' @param running_mean AnvlArray \code{[C]}. Per-channel running mean.
+#' @param running_var AnvlArray \code{[C]}. Per-channel running variance.
+#' @param weight AnvlArray \code{[C]} scale, or NULL.
+#' @param bias AnvlArray \code{[C]} shift, or NULL.
+#' @param eps Numeric. Stability epsilon.
+#'
+#' @export
+batch_norm <- function(x, running_mean, running_var, weight = NULL,
+                       bias = NULL, eps = 1e-5) {
+    s <- anvl::shape(x)
+    cshape <- rep(1L, length(s))
+    cshape[2L] <- s[2L]
+    bc <- function(v) anvl::nv_broadcast_to(anvl::nv_reshape(v, cshape), s)
+    out <- (x - bc(running_mean)) * bc(anvl::nv_rsqrt(running_var + eps))
+    if (!is.null(weight)) {
+        out <- out * bc(weight)
+    }
+    if (!is.null(bias)) {
+        out <- out + bc(bias)
+    }
+    out
+}
+
 #' Nearest-neighbour 2x upsampling over [B, C, H, W]
 #'
 #' Each pixel becomes a 2x2 block (matches
