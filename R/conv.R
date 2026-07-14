@@ -37,8 +37,9 @@ NULL
 #' @export
 conv1d <- function(input, weight, bias = NULL, stride = 1L, padding = 0L,
                    dilation = 1L, groups = 1L) {
-    out <- anvl::nv_conv1d(input, weight, stride = stride, padding = padding,
-                           dilation = dilation, groups = groups)
+    out <- anvl::nv_conv1d(input, weight, stride = stride,
+                           padding = padding, dilation = dilation,
+                           groups = groups)
     .conv_add_bias(out, bias)
 }
 
@@ -59,8 +60,9 @@ conv1d <- function(input, weight, bias = NULL, stride = 1L, padding = 0L,
 #' @export
 conv2d <- function(input, weight, bias = NULL, stride = 1L, padding = 0L,
                    dilation = 1L, groups = 1L) {
-    out <- anvl::nv_conv2d(input, weight, stride = stride, padding = padding,
-                           dilation = dilation, groups = groups)
+    out <- anvl::nv_conv2d(input, weight, stride = stride,
+                           padding = padding, dilation = dilation,
+                           groups = groups)
     .conv_add_bias(out, bias)
 }
 
@@ -81,8 +83,9 @@ conv2d <- function(input, weight, bias = NULL, stride = 1L, padding = 0L,
 #' @export
 conv3d <- function(input, weight, bias = NULL, stride = 1L, padding = 0L,
                    dilation = 1L, groups = 1L) {
-    out <- anvl::nv_conv3d(input, weight, stride = stride, padding = padding,
-                           dilation = dilation, groups = groups)
+    out <- anvl::nv_conv3d(input, weight, stride = stride,
+                           padding = padding, dilation = dilation,
+                           groups = groups)
     .conv_add_bias(out, bias)
 }
 
@@ -118,12 +121,9 @@ conv_transpose1d <- function(input, weight, bias = NULL, stride = 1L,
     dilation <- as.integer(dilation)
     k <- anvl::shape(weight)[3L]
     lo <- dilation * (k - 1L) - padding
-    xp <- anvl::nv_pad(
-        input, 0,
-        edge_padding_low = c(0L, 0L, lo),
-        edge_padding_high = c(0L, 0L, lo + output_padding),
-        interior_padding = c(0L, 0L, stride - 1L)
-    )
+    xp <- anvl::nv_pad(input, 0, edge_padding_low = c(0L, 0L, lo),
+                       edge_padding_high = c(0L, 0L, lo + output_padding),
+                       interior_padding = c(0L, 0L, stride - 1L))
     w <- anvl::nv_reverse(anvl::nv_transpose(weight, c(2L, 1L, 3L)), dims = 3L)
     out <- anvl::nv_conv1d(xp, w, stride = 1L, padding = 0L,
                            dilation = dilation, groups = 1L)
