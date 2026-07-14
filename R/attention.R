@@ -27,7 +27,9 @@ yq_sdpa <- function(query, key, value, mask = NULL, scale = NULL,
                     precision = "highest") {
     nd <- anvl::ndims(query)
     d <- anvl::shape(query)[nd]
-    if (is.null(scale)) scale <- 1 / sqrt(d)
+    if (is.null(scale)) {
+        scale <- 1 / sqrt(d)
+    }
     perm <- seq_len(nd)
     perm[c(nd - 1L, nd)] <- perm[c(nd, nd - 1L)]
     scores <- .yq_matmul(query, anvl::nv_transpose(key, perm),
@@ -77,8 +79,7 @@ yq_rope_split <- function(x, cos, sin) {
     second <- yq_slice_lastdim(x, r + 1L, 2L * r)
     out_first <- first * cos - second * sin
     out_second <- second * cos + first * sin
-    anvl::nv_concatenate(out_first, out_second,
-                         dimension = anvl::ndims(x))
+    anvl::nv_concatenate(out_first, out_second, dimension = anvl::ndims(x))
 }
 
 #' Repeat KV heads to match query heads (grouped-query attention)
@@ -94,9 +95,11 @@ yq_rope_split <- function(x, cos, sin) {
 #'
 #' @export
 yq_repeat_kv <- function(x, groups) {
-    if (groups == 1L) return(x)
+    if (groups == 1L) {
+        return(x)
+    }
     s <- anvl::shape(x)
-    x <- anvl::nv_unsqueeze(x, 3L)                       # [B, KV, 1, S, D]
+    x <- anvl::nv_unsqueeze(x, 3L) # [B, KV, 1, S, D]
     x <- anvl::nv_broadcast_to(x, c(s[1L], s[2L], groups, s[3L], s[4L]))
     anvl::nv_reshape(x, c(s[1L], s[2L] * groups, s[3L], s[4L]))
 }
@@ -117,12 +120,9 @@ yq_repeat_kv <- function(x, groups) {
 yq_rope_apply <- function(x, cos, sin) {
     s <- anvl::shape(x)
     r <- anvl::nv_reshape(x, c(s[1L], s[2L], s[3L], s[4L] %/% 2L, 2L))
-    xr <- r[, , , , 1L]
-    xi <- r[, , , , 2L]
-    rot <- anvl::nv_concatenate(
-                                anvl::nv_unsqueeze(anvl::nv_negate(xi), 5L),
-                                anvl::nv_unsqueeze(xr, 5L),
-                                dimension = 5L
-    )
+    xr <- r[,,,, 1L]
+    xi <- r[,,,, 2L]
+    rot <- anvl::nv_concatenate(anvl::nv_unsqueeze(anvl::nv_negate(xi), 5L),
+                                anvl::nv_unsqueeze(xr, 5L), dimension = 5L)
     x * cos + anvl::nv_reshape(rot, s) * sin
 }
