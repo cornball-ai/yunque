@@ -1,13 +1,13 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_st_read}
-\alias{yq_st_read}
+\name{st_read}
+\alias{st_read}
 \title{Read one tensor from a safetensors handle as an R array}
 \usage{
-yq_st_read(st, key, transpose = FALSE)
+st_read(st, key, transpose = FALSE)
 }
 \arguments{
-\item{st}{A handle from \code{\link{yq_st_open}} /
-\code{\link{yq_st_open_sharded}}.}
+\item{st}{A handle from \code{\link{st_open}} /
+\code{\link{st_open_sharded}}.}
 
 \item{key}{Tensor name.}
 

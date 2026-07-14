@@ -1,13 +1,13 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_embedding}
-\alias{yq_embedding}
+\name{embedding}
+\alias{embedding}
 \title{Embedding lookup (host-side gather)}
 \usage{
-yq_embedding(weight, ids, zero_based = TRUE, dtype = "f32", device = "cpu")
+embedding(weight, ids, zero_based = TRUE, dtype = "f32", device = "cpu")
 }
 \arguments{
 \item{weight}{R matrix \code{[num_embeddings, dim]} (e.g. from
-\code{\link{yq_st_read}}).}
+\code{\link{st_read}}).}
 
 \item{ids}{Integer vector \code{[N]} or matrix \code{[B, S]} of token ids.}
 

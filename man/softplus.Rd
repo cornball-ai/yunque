@@ -1,9 +1,9 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_softplus}
-\alias{yq_softplus}
+\name{softplus}
+\alias{softplus}
 \title{Softplus activation}
 \usage{
-yq_softplus(x)
+softplus(x)
 }
 \arguments{
 \item{x}{AnvlArray.}

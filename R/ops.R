@@ -219,7 +219,7 @@ linear <- function(x, w_t, bias = NULL, precision = "highest") {
 #'
 #' @export
 embedding <- function(weight, ids, zero_based = TRUE, dtype = "f32",
-                         device = "cpu") {
+                      device = "cpu") {
     hidden <- ncol(weight)
     if (zero_based) {
         off <- 1L

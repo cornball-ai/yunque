@@ -1,9 +1,9 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_snake}
-\alias{yq_snake}
+\name{snake}
+\alias{snake}
 \title{Snake activation}
 \usage{
-yq_snake(x, alpha, beta = NULL, eps = 1e-09)
+snake(x, alpha, beta = NULL, eps = 1e-09)
 }
 \arguments{
 \item{x}{AnvlArray.}

@@ -1,9 +1,9 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_slice_seq}
-\alias{yq_slice_seq}
+\name{slice_seq}
+\alias{slice_seq}
 \title{Slice a contiguous range along the sequence dimension (dim 2)}
 \usage{
-yq_slice_seq(x, from, to)
+slice_seq(x, from, to)
 }
 \arguments{
 \item{x}{AnvlArray \code{[B, S, ...]}.}

@@ -24,7 +24,7 @@
 #'
 #' @export
 sdpa <- function(query, key, value, mask = NULL, scale = NULL,
-                    precision = "highest") {
+                 precision = "highest") {
     nd <- anvl::ndims(query)
     d <- anvl::shape(query)[nd]
     if (is.null(scale)) {
@@ -33,7 +33,7 @@ sdpa <- function(query, key, value, mask = NULL, scale = NULL,
     perm <- seq_len(nd)
     perm[c(nd - 1L, nd)] <- perm[c(nd, nd - 1L)]
     scores <- .matmul(query, anvl::nv_transpose(key, perm),
-                         precision = precision) * scale
+                      precision = precision) * scale
     if (!is.null(mask)) {
         scores <- scores + anvl::nv_broadcast_to(mask, anvl::shape(scores))
     }

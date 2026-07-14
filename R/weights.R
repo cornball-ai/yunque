@@ -99,8 +99,8 @@ st_read <- function(st, key, transpose = FALSE) {
         readBin(raw4, "numeric", n = n, size = 4L, endian = "little")
     },
                    F16 = .half_to_float(
-            readBin(st$con, "integer", n = n, size = 2L, signed = FALSE,
-                    endian = "little")),
+                                        readBin(st$con, "integer", n = n, size = 2L, signed = FALSE,
+                endian = "little")),
                    F8_E4M3 = .fp8e4m3_to_float(
             readBin(st$con, "integer", n = n, size = 1L, signed = FALSE,
                     endian = "little")),

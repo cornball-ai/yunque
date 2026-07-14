@@ -1,9 +1,9 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_group_norm}
-\alias{yq_group_norm}
+\name{group_norm}
+\alias{group_norm}
 \title{Group normalization over [B, C, H, W]}
 \usage{
-yq_group_norm(x, weight, bias, num_groups = 32L, eps = 1e-06)
+group_norm(x, weight, bias, num_groups = 32L, eps = 1e-06)
 }
 \arguments{
 \item{x}{AnvlArray \code{[B, C, H, W]}.}

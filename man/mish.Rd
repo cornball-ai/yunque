@@ -1,9 +1,9 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_mish}
-\alias{yq_mish}
+\name{mish}
+\alias{mish}
 \title{Mish activation}
 \usage{
-yq_mish(x)
+mish(x)
 }
 \arguments{
 \item{x}{AnvlArray.}
