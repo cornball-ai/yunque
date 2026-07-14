@@ -126,3 +126,76 @@ rope_apply <- function(x, cos, sin) {
                                 anvl::nv_unsqueeze(xr, 5L), dimension = 5L)
     x * cos + anvl::nv_reshape(rot, s) * sin
 }
+
+#' Relative-position shift (Transformer-XL / ESPnet)
+#'
+#' Turns the \code{[B, H, T, 2T-1]} query-vs-relative-position scores into
+#' \code{[B, H, T, T]} query-vs-key scores via the pad / reshape / slice
+#' trick, so entry \code{[i, t]} picks the score at relative distance
+#' \code{i - t}. Relies on \code{nv_reshape} being row-major (it is).
+#'
+#' @param x AnvlArray \code{[B, H, T, 2T-1]}.
+#'
+#' @return AnvlArray \code{[B, H, T, T]}.
+#'
+#' @export
+rel_shift <- function(x) {
+    s <- anvl::shape(x)
+    b <- s[1L]
+    h <- s[2L]
+    t <- s[3L]
+    p <- s[4L]
+    x <- anvl::nv_pad(x, 0, c(0L, 0L, 0L, 1L), c(0L, 0L, 0L, 0L))
+    x <- anvl::nv_reshape(x, c(b, h, p + 1L, t))
+    x <- .slice_dim(x, 3L, 2L, p + 1L)
+    x <- anvl::nv_reshape(x, c(b, h, t, p))
+    .slice_dim(x, 4L, 1L, t)
+}
+
+#' Relative-position multi-head attention (ESPnet conformer)
+#'
+#' Transformer-XL-style relative-position attention: the content term
+#' \code{(q + u) k^T} plus the position term \code{rel_shift((q + v) p^T)},
+#' scaled and softmaxed. Takes already-projected \code{q}/\code{k}/\code{v}
+#' and the projected relative-position keys \code{p} (the caller does the
+#' \code{linear_q/k/v/pos} projections and the output projection, as with
+#' \code{\link{sdpa}}). Returns the attention output before the output
+#' projection.
+#'
+#' @param q AnvlArray \code{[B, H, T, d_k]}. Projected queries.
+#' @param k AnvlArray \code{[B, H, T, d_k]}. Projected keys.
+#' @param v AnvlArray \code{[B, H, T, d_k]}. Projected values.
+#' @param p AnvlArray \code{[B, H, 2T-1, d_k]} (or batch 1, broadcast).
+#'   Projected relative-position keys.
+#' @param pos_bias_u AnvlArray \code{[H, d_k]}. Content bias (\code{u}).
+#' @param pos_bias_v AnvlArray \code{[H, d_k]}. Position bias (\code{v}).
+#' @param mask AnvlArray additive bias broadcast to \code{[B, H, T, T]}, or
+#'   NULL. Masked positions carry a large negative value (e.g. -65504 for
+#'   f16), matching \code{\link{sdpa}}'s additive-mask convention.
+#'
+#' @return AnvlArray \code{[B, H, T, d_k]}.
+#'
+#' @export
+rel_position_attention <- function(q, k, v, p, pos_bias_u, pos_bias_v,
+                                   mask = NULL) {
+    s <- anvl::shape(q)
+    nd <- length(s)
+    hd <- s[2L]
+    dk <- s[nd]
+    scale <- 1 / sqrt(dk)
+    swap <- seq_len(nd)
+    swap[c(nd - 1L, nd)] <- swap[c(nd, nd - 1L)]
+    bu <- anvl::nv_broadcast_to(anvl::nv_reshape(pos_bias_u, c(1L, hd, 1L, dk)), s)
+    bv <- anvl::nv_broadcast_to(anvl::nv_reshape(pos_bias_v, c(1L, hd, 1L, dk)), s)
+    ps <- anvl::shape(p)
+    if (ps[1L] != s[1L]) {
+        p <- anvl::nv_broadcast_to(p, c(s[1L], ps[2L], ps[3L], ps[4L]))
+    }
+    matrix_ac <- .matmul(q + bu, anvl::nv_transpose(k, swap))
+    matrix_bd <- rel_shift(.matmul(q + bv, anvl::nv_transpose(p, swap)))
+    scores <- (matrix_ac + matrix_bd) * scale
+    if (!is.null(mask)) {
+        scores <- scores + anvl::nv_broadcast_to(mask, anvl::shape(scores))
+    }
+    .matmul(softmax(scores), v)
+}
