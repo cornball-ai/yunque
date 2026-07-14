@@ -1,7 +1,7 @@
 #' Open a safetensors file for partial reads
 #'
-#' Returns a handle for \code{\link{yq_st_read}}. Pair with
-#' \code{\link{yq_st_close}}.
+#' Returns a handle for \code{\link{st_read}}. Pair with
+#' \code{\link{st_close}}.
 #'
 #' @param path Path to a .safetensors file.
 #'
@@ -9,7 +9,7 @@
 #'   header, and data offset).
 #'
 #' @export
-yq_st_open <- function(path) {
+st_open <- function(path) {
     con <- file(path, "rb")
     header_len <- readBin(con, "integer", n = 1, size = 8, endian = "little")
     header <- jsonlite::fromJSON(readChar(con, header_len, useBytes = TRUE),
@@ -22,34 +22,34 @@ yq_st_open <- function(path) {
 #'
 #' Handles the \code{model.safetensors.index.json} +
 #' \code{model-000NN-of-000MM.safetensors} layout. Returns a handle
-#' whose \code{$header} spans all shards; \code{\link{yq_st_read}}
-#' dispatches each key to its shard. Close with \code{\link{yq_st_close}}.
+#' whose \code{$header} spans all shards; \code{\link{st_read}}
+#' dispatches each key to its shard. Close with \code{\link{st_close}}.
 #'
 #' @param dir Directory containing the index and shards.
 #'
 #' @return An opaque sharded handle.
 #'
 #' @export
-yq_st_open_sharded <- function(dir) {
+st_open_sharded <- function(dir) {
     idx <- jsonlite::fromJSON(file.path(dir, "model.safetensors.index.json"),
                               simplifyVector = TRUE)
     wm <- idx$weight_map
     shards <- unique(unlist(wm))
-    sts <- lapply(shards, function(s) yq_st_open(file.path(dir, s)))
+    sts <- lapply(shards, function(s) st_open(file.path(dir, s)))
     names(sts) <- shards
     header <- do.call(c, lapply(sts, function(st) st$header))
     key_shard <- unlist(wm)
     structure(list(sts = sts, header = header, key_shard = key_shard,
-                   sharded = TRUE), class = "yq_sharded")
+                   sharded = TRUE), class = "sharded")
 }
 
 #' Close a safetensors handle
 #'
-#' @param st A handle from \code{\link{yq_st_open}} /
-#'   \code{\link{yq_st_open_sharded}}.
+#' @param st A handle from \code{\link{st_open}} /
+#'   \code{\link{st_open_sharded}}.
 #'
 #' @export
-yq_st_close <- function(st) {
+st_close <- function(st) {
     if (isTRUE(st$sharded)) {
         for (s in st$sts) {
             close(s$con)
@@ -66,8 +66,8 @@ yq_st_close <- function(st) {
 #' a single key seeks straight to its bytes, so pulling a few tensors out
 #' of a multi-GB checkpoint is cheap.
 #'
-#' @param st A handle from \code{\link{yq_st_open}} /
-#'   \code{\link{yq_st_open_sharded}}.
+#' @param st A handle from \code{\link{st_open}} /
+#'   \code{\link{st_open_sharded}}.
 #' @param key Tensor name.
 #' @param transpose Logical. Return 2-D tensors transposed, which is free
 #'   — a row-major \code{[out, in]} checkpoint matrix read column-major
@@ -77,10 +77,10 @@ yq_st_close <- function(st) {
 #' @return An R array / vector of doubles (exact f32 values).
 #'
 #' @export
-yq_st_read <- function(st, key, transpose = FALSE) {
+st_read <- function(st, key, transpose = FALSE) {
     if (isTRUE(st$sharded)) {
         sub <- st$sts[[st$key_shard[[key]]]]
-        return(yq_st_read(sub, key, transpose = transpose))
+        return(st_read(sub, key, transpose = transpose))
     }
     meta <- st$header[[key]]
     if (is.null(meta)) {
@@ -98,13 +98,13 @@ yq_st_read <- function(st, key, transpose = FALSE) {
         raw4[4L * idx] <- b[2L * idx]
         readBin(raw4, "numeric", n = n, size = 4L, endian = "little")
     },
-                   F16 = .yq_half_to_float(
+                   F16 = .half_to_float(
             readBin(st$con, "integer", n = n, size = 2L, signed = FALSE,
                     endian = "little")),
-                   F8_E4M3 = .yq_fp8e4m3_to_float(
+                   F8_E4M3 = .fp8e4m3_to_float(
             readBin(st$con, "integer", n = n, size = 1L, signed = FALSE,
                     endian = "little")),
-                   F8_E5M2 = .yq_fp8e5m2_to_float(
+                   F8_E5M2 = .fp8e5m2_to_float(
             readBin(st$con, "integer", n = n, size = 1L, signed = FALSE,
                     endian = "little")),
                    stop("unsupported dtype ", meta$dtype, " for ", key))
@@ -125,7 +125,7 @@ yq_st_read <- function(st, key, transpose = FALSE) {
 # Vectorized float8 E4M3FN -> double. Input: uint8 codes.
 # sign(1) exp(4, bias 7) mantissa(3); finite variant (no inf; the single
 # NaN code is exp=15,mant=7). Max normal 448.
-.yq_fp8e4m3_to_float <- function(b) {
+.fp8e4m3_to_float <- function(b) {
     sign <- ifelse(bitwShiftR(b, 7L) == 1L, -1, 1)
     exp <- bitwAnd(bitwShiftR(b, 3L), 0xfL)
     mant <- bitwAnd(b, 0x7L)
@@ -140,7 +140,7 @@ yq_st_read <- function(st, key, transpose = FALSE) {
 
 # Vectorized float8 E5M2 -> double. Input: uint8 codes.
 # sign(1) exp(5, bias 15) mantissa(2); has inf/nan like IEEE.
-.yq_fp8e5m2_to_float <- function(b) {
+.fp8e5m2_to_float <- function(b) {
     sign <- ifelse(bitwShiftR(b, 7L) == 1L, -1, 1)
     exp <- bitwAnd(bitwShiftR(b, 2L), 0x1fL)
     mant <- bitwAnd(b, 0x3L)
@@ -157,7 +157,7 @@ yq_st_read <- function(st, key, transpose = FALSE) {
 # Vectorized IEEE-754 half (F16) -> double. Input: uint16 codes.
 # F16 is sign(1) exp(5, bias 15) mantissa(10); handles normal,
 # subnormal, and inf/nan.
-.yq_half_to_float <- function(h) {
+.half_to_float <- function(h) {
     sign <- ifelse(bitwShiftR(h, 15L) == 1L, -1, 1)
     exp <- bitwAnd(bitwShiftR(h, 10L), 0x1fL)
     mant <- bitwAnd(h, 0x3ffL)
@@ -173,25 +173,25 @@ yq_st_read <- function(st, key, transpose = FALSE) {
 
 #' Read safetensors tensors as R arrays (base R, partial reads)
 #'
-#' Convenience wrapper over \code{\link{yq_st_read}}: F16/BF16/F32
+#' Convenience wrapper over \code{\link{st_read}}: F16/BF16/F32
 #' payloads, no torch dependency, reads only the requested keys.
 #'
 #' @param path Path to a .safetensors file.
 #' @param keys Character vector of tensor names, or NULL for all.
 #' @param transpose_2d Logical. Return 2-D tensors transposed (free; a
 #'   \code{[out, in]} checkpoint matrix becomes the \code{[in, out]}
-#'   layout \code{\link{yq_linear}} wants).
+#'   layout \code{\link{linear}} wants).
 #'
 #' @return Named list of R arrays/vectors (doubles, exact f32 values).
 #'
 #' @export
-yq_read_safetensors <- function(path, keys = NULL, transpose_2d = FALSE) {
-    st <- yq_st_open(path)
+read_safetensors <- function(path, keys = NULL, transpose_2d = FALSE) {
+    st <- st_open(path)
     on.exit(close(st$con))
     if (is.null(keys)) {
         keys <- names(st$header)
     }
-    out <- lapply(keys, function(k) yq_st_read(st, k, transpose_2d))
+    out <- lapply(keys, function(k) st_read(st, k, transpose_2d))
     names(out) <- keys
     out
 }
