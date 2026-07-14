@@ -30,7 +30,7 @@ yq_silu <- function(x) {
 #' @export
 yq_softplus <- function(x) {
     anvl::nv_max(x, 0) +
-        anvl::nv_log1p(anvl::nv_exp(anvl::nv_negate(anvl::nv_abs(x))))
+    anvl::nv_log1p(anvl::nv_exp(anvl::nv_negate(anvl::nv_abs(x))))
 }
 
 #' Mish activation
@@ -77,7 +77,9 @@ yq_elu <- function(x, alpha = 1) {
 #' @export
 yq_snake <- function(x, alpha, beta = NULL, eps = 1e-9) {
     s <- anvl::shape(x)
-    if (is.null(beta)) beta <- alpha
+    if (is.null(beta)) {
+        beta <- alpha
+    }
     a <- anvl::nv_broadcast_to(alpha, s)
     b <- anvl::nv_broadcast_to(beta, s)
     sn <- anvl::nv_sin(x * a)
@@ -205,15 +207,19 @@ yq_linear <- function(x, w_t, bias = NULL, precision = "highest") {
 yq_embedding <- function(weight, ids, zero_based = TRUE, dtype = "f32",
                          device = "cpu") {
     hidden <- ncol(weight)
-    off <- if (zero_based) 1L else 0L
+    if (zero_based) {
+        off <- 1L
+    } else {
+        off <- 0L
+    }
     d <- dim(ids)
     if (is.null(d)) {
-        rows <- weight[as.integer(ids) + off, , drop = FALSE]
+        rows <- weight[as.integer(ids) + off,, drop = FALSE]
         return(anvl::nv_array(rows, dtype = dtype, device = device))
     }
     b <- d[1L]
     s <- d[2L]
-    rows <- weight[as.integer(t(ids)) + off, , drop = FALSE]
+    rows <- weight[as.integer(t(ids)) + off,, drop = FALSE]
     arr <- aperm(array(t(rows), dim = c(hidden, s, b)), c(3L, 2L, 1L))
     anvl::nv_array(arr, dtype = dtype, device = device)
 }
@@ -266,8 +272,9 @@ yq_group_norm <- function(x, weight, bias, num_groups = 32L, eps = 1e-6) {
     v <- anvl::nv_reduce_sum(xc * xc, dims = 3L, drop = FALSE) / per
     xn <- xc * anvl::nv_broadcast_to(anvl::nv_rsqrt(v + eps), c(b, g, per))
     xn <- anvl::nv_reshape(xn, c(b, c, h, w))
-    aff <- function(p) anvl::nv_broadcast_to(anvl::nv_reshape(p, c(1L, c, 1L, 1L)),
-                                             c(b, c, h, w))
+    aff <- function(p) anvl::nv_broadcast_to(anvl::nv_reshape(p,
+            c(1L, c, 1L, 1L)),
+        c(b, c, h, w))
     xn * aff(weight) + aff(bias)
 }
 
