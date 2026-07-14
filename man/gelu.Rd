@@ -1,9 +1,9 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_gelu}
-\alias{yq_gelu}
+\name{gelu}
+\alias{gelu}
 \title{GELU activation}
 \usage{
-yq_gelu(x, approximate = c("tanh", "none"))
+gelu(x, approximate = c("tanh", "none"))
 }
 \arguments{
 \item{x}{AnvlArray.}

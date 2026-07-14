@@ -1,9 +1,9 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_sdpa}
-\alias{yq_sdpa}
+\name{sdpa}
+\alias{sdpa}
 \title{Scaled dot-product attention}
 \usage{
-yq_sdpa(query, key, value, mask = NULL, scale = NULL, precision = "highest")
+sdpa(query, key, value, mask = NULL, scale = NULL, precision = "highest")
 }
 \arguments{
 \item{query}{AnvlArray \code{[B, H, S, D]}.}

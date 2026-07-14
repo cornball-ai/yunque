@@ -23,8 +23,8 @@
 #' @return AnvlArray \code{[B, H, Sq, D]}.
 #'
 #' @export
-yq_sdpa <- function(query, key, value, mask = NULL, scale = NULL,
-                    precision = "highest") {
+sdpa <- function(query, key, value, mask = NULL, scale = NULL,
+                 precision = "highest") {
     nd <- anvl::ndims(query)
     d <- anvl::shape(query)[nd]
     if (is.null(scale)) {
@@ -32,12 +32,12 @@ yq_sdpa <- function(query, key, value, mask = NULL, scale = NULL,
     }
     perm <- seq_len(nd)
     perm[c(nd - 1L, nd)] <- perm[c(nd, nd - 1L)]
-    scores <- .yq_matmul(query, anvl::nv_transpose(key, perm),
-                         precision = precision) * scale
+    scores <- .matmul(query, anvl::nv_transpose(key, perm),
+                      precision = precision) * scale
     if (!is.null(mask)) {
         scores <- scores + anvl::nv_broadcast_to(mask, anvl::shape(scores))
     }
-    .yq_matmul(yq_softmax(scores), value, precision = precision)
+    .matmul(softmax(scores), value, precision = precision)
 }
 
 #' GELU activation
@@ -51,7 +51,7 @@ yq_sdpa <- function(query, key, value, mask = NULL, scale = NULL,
 #' @param approximate Character. \code{"tanh"} (default) or \code{"none"}.
 #'
 #' @export
-yq_gelu <- function(x, approximate = c("tanh", "none")) {
+gelu <- function(x, approximate = c("tanh", "none")) {
     approximate <- match.arg(approximate)
     if (approximate == "tanh") {
         inner <- (x + x * x * x * 0.044715) * sqrt(2 / pi)
@@ -65,18 +65,18 @@ yq_gelu <- function(x, approximate = c("tanh", "none")) {
 #'
 #' Rotates pairs formed by splitting the last dimension in half: element
 #' i pairs with element i + D/2 (\code{rotate_half}). Distinct from the
-#' interleaved-pair \code{\link{yq_rope_apply}} used by FLUX.
+#' interleaved-pair \code{\link{rope_apply}} used by FLUX.
 #'
 #' @param x AnvlArray \code{[B, H, S, D]}, D even.
 #' @param cos AnvlArray broadcastable to \code{[B, H, S, D/2]}.
 #' @param sin AnvlArray broadcastable to \code{[B, H, S, D/2]}.
 #'
 #' @export
-yq_rope_split <- function(x, cos, sin) {
+rope_split <- function(x, cos, sin) {
     d <- anvl::shape(x)[anvl::ndims(x)]
     r <- d %/% 2L
-    first <- yq_slice_lastdim(x, 1L, r)
-    second <- yq_slice_lastdim(x, r + 1L, 2L * r)
+    first <- slice_lastdim(x, 1L, r)
+    second <- slice_lastdim(x, r + 1L, 2L * r)
     out_first <- first * cos - second * sin
     out_second <- second * cos + first * sin
     anvl::nv_concatenate(out_first, out_second, dimension = anvl::ndims(x))
@@ -94,7 +94,7 @@ yq_rope_split <- function(x, cos, sin) {
 #' @return AnvlArray \code{[B, KV * groups, S, D]}.
 #'
 #' @export
-yq_repeat_kv <- function(x, groups) {
+repeat_kv <- function(x, groups) {
     if (groups == 1L) {
         return(x)
     }
@@ -117,7 +117,7 @@ yq_repeat_kv <- function(x, groups) {
 #' @param sin AnvlArray with the same shape as \code{x}.
 #'
 #' @export
-yq_rope_apply <- function(x, cos, sin) {
+rope_apply <- function(x, cos, sin) {
     s <- anvl::shape(x)
     r <- anvl::nv_reshape(x, c(s[1L], s[2L], s[3L], s[4L] %/% 2L, 2L))
     xr <- r[,,,, 1L]

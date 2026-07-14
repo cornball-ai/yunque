@@ -1,9 +1,9 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_rope_apply}
-\alias{yq_rope_apply}
+\name{rope_apply}
+\alias{rope_apply}
 \title{Apply rotary position embeddings (interleaved pairs)}
 \usage{
-yq_rope_apply(x, cos, sin)
+rope_apply(x, cos, sin)
 }
 \arguments{
 \item{x}{AnvlArray \code{[B, H, S, D]}, D even.}

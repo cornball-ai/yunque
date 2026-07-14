@@ -1,9 +1,9 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_repeat_kv}
-\alias{yq_repeat_kv}
+\name{repeat_kv}
+\alias{repeat_kv}
 \title{Repeat KV heads to match query heads (grouped-query attention)}
 \usage{
-yq_repeat_kv(x, groups)
+repeat_kv(x, groups)
 }
 \arguments{
 \item{x}{AnvlArray \code{[B, KV, S, D]}.}

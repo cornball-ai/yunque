@@ -28,15 +28,15 @@ Every function works eagerly and inside `anvl::jit()`.
 
 | Function | Purpose |
 |---|---|
-| `yq_softmax()`, `yq_layer_norm()`, `yq_rms_norm()`, `yq_group_norm()` | Reductions with the explicit-broadcast dance done for you |
-| `yq_silu()` | SiLU / swish activation |
-| `yq_linear()` | Bias-free/biased linear on pre-transposed weights, `precision =` aware |
-| `yq_sdpa()` | Scaled dot-product attention (optional additive mask) |
-| `yq_rope_apply()`, `yq_rope_split()` | Rotary embeddings — FLUX interleaved-pair and Llama/Qwen split-half |
-| `yq_repeat_kv()` | Grouped-query KV head expansion |
-| `yq_upsample_nearest2d()` | Nearest-2× upsampling over NCHW |
-| `yq_slice_lastdim()`, `yq_slice_seq()` | Static slicing for fused-projection and sequence splits |
-| `yq_st_open()`/`yq_st_open_sharded()`/`yq_st_read()`/`yq_st_close()`, `yq_read_safetensors()` | Base-R safetensors reader (BF16→f32, sharded-aware, partial reads) — no torch |
+| `softmax()`, `layer_norm()`, `rms_norm()`, `group_norm()` | Reductions with the explicit-broadcast dance done for you |
+| `silu()` | SiLU / swish activation |
+| `linear()` | Bias-free/biased linear on pre-transposed weights, `precision =` aware |
+| `sdpa()` | Scaled dot-product attention (optional additive mask) |
+| `rope_apply()`, `rope_split()` | Rotary embeddings — FLUX interleaved-pair and Llama/Qwen split-half |
+| `repeat_kv()` | Grouped-query KV head expansion |
+| `upsample_nearest2d()` | Nearest-2× upsampling over NCHW |
+| `slice_lastdim()`, `slice_seq()` | Static slicing for fused-projection and sequence splits |
+| `st_open()`/`st_open_sharded()`/`st_read()`/`st_close()`, `read_safetensors()` | Base-R safetensors reader (BF16→f32, sharded-aware, partial reads) — no torch |
 
 ## Why explicit broadcasting
 

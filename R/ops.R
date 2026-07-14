@@ -15,7 +15,7 @@ NULL
 #' @param x AnvlArray.
 #'
 #' @export
-yq_silu <- function(x) {
+silu <- function(x) {
     x * anvl::nv_logistic(x)
 }
 
@@ -28,7 +28,7 @@ yq_silu <- function(x) {
 #' @param x AnvlArray.
 #'
 #' @export
-yq_softplus <- function(x) {
+softplus <- function(x) {
     anvl::nv_max(x, 0) +
     anvl::nv_log1p(anvl::nv_exp(anvl::nv_negate(anvl::nv_abs(x))))
 }
@@ -41,8 +41,8 @@ yq_softplus <- function(x) {
 #' @param x AnvlArray.
 #'
 #' @export
-yq_mish <- function(x) {
-    x * anvl::nv_tanh(yq_softplus(x))
+mish <- function(x) {
+    x * anvl::nv_tanh(softplus(x))
 }
 
 #' ELU activation
@@ -55,7 +55,7 @@ yq_mish <- function(x) {
 #' @param alpha Numeric. Negative-saturation scale (default 1).
 #'
 #' @export
-yq_elu <- function(x, alpha = 1) {
+elu <- function(x, alpha = 1) {
     anvl::nv_max(x, 0) + (anvl::nv_exp(anvl::nv_min(x, 0)) - 1) * alpha
 }
 
@@ -75,7 +75,7 @@ yq_elu <- function(x, alpha = 1) {
 #' @param eps Numeric. Guards the reciprocal against division by zero.
 #'
 #' @export
-yq_snake <- function(x, alpha, beta = NULL, eps = 1e-9) {
+snake <- function(x, alpha, beta = NULL, eps = 1e-9) {
     s <- anvl::shape(x)
     if (is.null(beta)) {
         beta <- alpha
@@ -93,7 +93,7 @@ yq_snake <- function(x, alpha, beta = NULL, eps = 1e-9) {
 #' @param x AnvlArray.
 #'
 #' @export
-yq_softmax <- function(x) {
+softmax <- function(x) {
     d <- anvl::ndims(x)
     s <- anvl::shape(x)
     m <- anvl::nv_reduce_max(x, dims = d, drop = FALSE)
@@ -118,7 +118,7 @@ yq_softmax <- function(x) {
 #' @param eps Numeric. Stability epsilon.
 #'
 #' @export
-yq_layer_norm <- function(x, weight = NULL, bias = NULL, eps = 1e-6) {
+layer_norm <- function(x, weight = NULL, bias = NULL, eps = 1e-6) {
     d <- anvl::ndims(x)
     s <- anvl::shape(x)
     n <- s[d]
@@ -145,7 +145,7 @@ yq_layer_norm <- function(x, weight = NULL, bias = NULL, eps = 1e-6) {
 #' @param eps Numeric. Stability epsilon.
 #'
 #' @export
-yq_rms_norm <- function(x, weight = NULL, eps = 1e-6) {
+rms_norm <- function(x, weight = NULL, eps = 1e-6) {
     d <- anvl::ndims(x)
     s <- anvl::shape(x)
     n <- s[d]
@@ -161,7 +161,7 @@ yq_rms_norm <- function(x, weight = NULL, eps = 1e-6) {
 # run TF32 (measured scaled err 1.4e-03); the dev branch adds
 # precision = with default "highest" (measured 2.3e-06, matching strict
 # f32). Pass precision only where supported so yunque works on both.
-.yq_matmul <- function(lhs, rhs, precision = "highest") {
+.matmul <- function(lhs, rhs, precision = "highest") {
     if ("precision" %in% names(formals(anvl::nv_matmul))) {
         anvl::nv_matmul(lhs, rhs, precision = precision)
     } else {
@@ -185,12 +185,12 @@ yq_rms_norm <- function(x, weight = NULL, eps = 1e-6) {
 #'   parameter (and whose CUDA dots run TF32 regardless).
 #'
 #' @export
-yq_linear <- function(x, w_t, bias = NULL, precision = "highest") {
+linear <- function(x, w_t, bias = NULL, precision = "highest") {
     s <- anvl::shape(x)
     nd <- length(s)
     d_out <- anvl::shape(w_t)[2L]
     x2 <- anvl::nv_reshape(x, c(as.integer(prod(s[-nd])), s[nd]))
-    y <- .yq_matmul(x2, w_t, precision = precision)
+    y <- .matmul(x2, w_t, precision = precision)
     out_shape <- c(s[-nd], d_out)
     if (!is.null(bias)) {
         y <- y + anvl::nv_broadcast_to(bias, anvl::shape(y))
@@ -207,7 +207,7 @@ yq_linear <- function(x, w_t, bias = NULL, precision = "highest") {
 #' ports use for token/position embeddings).
 #'
 #' @param weight R matrix \code{[num_embeddings, dim]} (e.g. from
-#'   \code{\link{yq_st_read}}).
+#'   \code{\link{st_read}}).
 #' @param ids Integer vector \code{[N]} or matrix \code{[B, S]} of token ids.
 #' @param zero_based Logical. TRUE (default) treats \code{ids} as 0-based
 #'   (torch convention); FALSE as 1-based R indices.
@@ -218,8 +218,8 @@ yq_linear <- function(x, w_t, bias = NULL, precision = "highest") {
 #'   \code{[B, S, dim]} for a matrix.
 #'
 #' @export
-yq_embedding <- function(weight, ids, zero_based = TRUE, dtype = "f32",
-                         device = "cpu") {
+embedding <- function(weight, ids, zero_based = TRUE, dtype = "f32",
+                      device = "cpu") {
     hidden <- ncol(weight)
     if (zero_based) {
         off <- 1L
@@ -240,7 +240,7 @@ yq_embedding <- function(weight, ids, zero_based = TRUE, dtype = "f32",
 
 # Static slice [from, to] (1-based inclusive) along one dimension,
 # keeping all others whole.
-.yq_slice_dim <- function(x, dim, from, to) {
+.slice_dim <- function(x, dim, from, to) {
     s <- anvl::shape(x)
     nd <- length(s)
     start <- rep(1L, nd)
@@ -258,8 +258,8 @@ yq_embedding <- function(weight, ids, zero_based = TRUE, dtype = "f32",
 #' @param to Integer. 1-based inclusive end.
 #'
 #' @export
-yq_slice_lastdim <- function(x, from, to) {
-    .yq_slice_dim(x, length(anvl::shape(x)), from, to)
+slice_lastdim <- function(x, from, to) {
+    .slice_dim(x, length(anvl::shape(x)), from, to)
 }
 
 #' Group normalization over [B, C, H, W]
@@ -275,7 +275,7 @@ yq_slice_lastdim <- function(x, from, to) {
 #' @param eps Numeric.
 #'
 #' @export
-yq_group_norm <- function(x, weight, bias, num_groups = 32L, eps = 1e-6) {
+group_norm <- function(x, weight, bias, num_groups = 32L, eps = 1e-6) {
     s <- anvl::shape(x)
     b <- s[1L]; c <- s[2L]; h <- s[3L]; w <- s[4L]
     g <- as.integer(num_groups)
@@ -300,7 +300,7 @@ yq_group_norm <- function(x, weight, bias, num_groups = 32L, eps = 1e-6) {
 #' @param x AnvlArray \code{[B, C, H, W]}.
 #'
 #' @export
-yq_upsample_nearest2d <- function(x) {
+upsample_nearest2d <- function(x) {
     s <- anvl::shape(x)
     b <- s[1L]; c <- s[2L]; h <- s[3L]; w <- s[4L]
     x <- anvl::nv_reshape(x, c(b, c, h, 1L, w, 1L))
@@ -318,6 +318,6 @@ yq_upsample_nearest2d <- function(x) {
 #' @param to Integer. 1-based inclusive end.
 #'
 #' @export
-yq_slice_seq <- function(x, from, to) {
-    .yq_slice_dim(x, 2L, from, to)
+slice_seq <- function(x, from, to) {
+    .slice_dim(x, 2L, from, to)
 }

@@ -1,9 +1,9 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_linear}
-\alias{yq_linear}
+\name{linear}
+\alias{linear}
 \title{Linear layer (bias-free)}
 \usage{
-yq_linear(x, w_t, bias = NULL, precision = "highest")
+linear(x, w_t, bias = NULL, precision = "highest")
 }
 \arguments{
 \item{x}{AnvlArray \code{[..., d_in]}.}

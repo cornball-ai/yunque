@@ -1,13 +1,13 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_silu}
-\alias{yq_silu}
-\title{SiLU activation}
+\name{softmax}
+\alias{softmax}
+\title{Softmax over the last dimension}
 \usage{
-yq_silu(x)
+softmax(x)
 }
 \arguments{
 \item{x}{AnvlArray.}
 }
 \description{
-\code{x * sigmoid(x)}.
+Max-subtracted for stability.
 }

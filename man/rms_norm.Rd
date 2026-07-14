@@ -1,9 +1,9 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_rms_norm}
-\alias{yq_rms_norm}
+\name{rms_norm}
+\alias{rms_norm}
 \title{RMS normalization over the last dimension}
 \usage{
-yq_rms_norm(x, weight = NULL, eps = 1e-06)
+rms_norm(x, weight = NULL, eps = 1e-06)
 }
 \arguments{
 \item{x}{AnvlArray.}

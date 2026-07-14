@@ -1,9 +1,9 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_layer_norm}
-\alias{yq_layer_norm}
+\name{layer_norm}
+\alias{layer_norm}
 \title{Layer normalization over the last dimension}
 \usage{
-yq_layer_norm(x, weight = NULL, bias = NULL, eps = 1e-06)
+layer_norm(x, weight = NULL, bias = NULL, eps = 1e-06)
 }
 \arguments{
 \item{x}{AnvlArray.}

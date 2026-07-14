@@ -1,9 +1,9 @@
 % tinyrox says don't edit this manually, but it can't stop you!
-\name{yq_elu}
-\alias{yq_elu}
+\name{elu}
+\alias{elu}
 \title{ELU activation}
 \usage{
-yq_elu(x, alpha = 1)
+elu(x, alpha = 1)
 }
 \arguments{
 \item{x}{AnvlArray.}
