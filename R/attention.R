@@ -185,8 +185,10 @@ rel_position_attention <- function(q, k, v, p, pos_bias_u, pos_bias_v,
     scale <- 1 / sqrt(dk)
     swap <- seq_len(nd)
     swap[c(nd - 1L, nd)] <- swap[c(nd, nd - 1L)]
-    bu <- anvl::nv_broadcast_to(anvl::nv_reshape(pos_bias_u, c(1L, hd, 1L, dk)), s)
-    bv <- anvl::nv_broadcast_to(anvl::nv_reshape(pos_bias_v, c(1L, hd, 1L, dk)), s)
+    bu <- anvl::nv_broadcast_to(anvl::nv_reshape(pos_bias_u, c(1L, hd, 1L, dk)),
+                                s)
+    bv <- anvl::nv_broadcast_to(anvl::nv_reshape(pos_bias_v, c(1L, hd, 1L, dk)),
+                                s)
     ps <- anvl::shape(p)
     if (ps[1L] != s[1L]) {
         p <- anvl::nv_broadcast_to(p, c(s[1L], ps[2L], ps[3L], ps[4L]))
