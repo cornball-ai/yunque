@@ -1,5 +1,10 @@
 # tinyrox says don't edit this manually, but it can't stop you!
 
+export(batch_norm)
+export(conv_transpose1d)
+export(conv1d)
+export(conv2d)
+export(conv3d)
 export(elu)
 export(embedding)
 export(gelu)
