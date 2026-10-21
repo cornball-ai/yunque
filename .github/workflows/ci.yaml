@@ -12,7 +12,9 @@ env:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    # r-universe builds the compiled pjrt binary for Ubuntu 26.04 only; on
+    # 24.04 it serves source, which needs protobuf and a long C++ build.
+    runs-on: ubuntu-26.04
 
     steps:
       - uses: actions/checkout@v6
