@@ -3,8 +3,15 @@
 \alias{conv3d}
 \title{3-D convolution with optional bias}
 \usage{
-conv3d(input, weight, bias = NULL, stride = 1L, padding = 0L, dilation = 1L,
-       groups = 1L)
+conv3d(
+  input,
+  weight,
+  bias = NULL,
+  stride = 1L,
+  padding = 0L,
+  dilation = 1L,
+  groups = 1L
+)
 }
 \arguments{
 \item{input}{AnvlArray \code{[N, C_in, D, H, W]}.}

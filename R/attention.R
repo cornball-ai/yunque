@@ -9,8 +9,6 @@
 #' @param value AnvlArray \code{[B, H, S, D]}.
 #' @param precision Character. Matmul precision; the \code{"highest"}
 #'   default forbids TF32-style downgrades so f32 is honest f32.
-#'   Ignored on anvl 0.3.0, whose \code{nv_matmul} has no precision
-#'   parameter (and whose CUDA dots run TF32 regardless).
 #'
 #' @param mask AnvlArray additive bias added to the (scaled) scores,
 #'   broadcast to the score shape \code{[B, H, Sq, Sk]} — a causal /
@@ -25,7 +23,7 @@
 #' @export
 sdpa <- function(query, key, value, mask = NULL, scale = NULL,
                  precision = "highest") {
-    nd <- anvl::ndims(query)
+    nd <- anvl::naxes(query)
     d <- anvl::shape(query)[nd]
     if (is.null(scale)) {
         scale <- 1 / sqrt(d)
@@ -35,7 +33,7 @@ sdpa <- function(query, key, value, mask = NULL, scale = NULL,
     scores <- .matmul(query, anvl::nv_transpose(key, perm),
                       precision = precision) * scale
     if (!is.null(mask)) {
-        scores <- scores + anvl::nv_broadcast_to(mask, anvl::shape(scores))
+        scores <- scores + .bcast_to(mask, anvl::shape(scores))
     }
     .matmul(softmax(scores), value, precision = precision)
 }
@@ -73,13 +71,13 @@ gelu <- function(x, approximate = c("tanh", "none")) {
 #'
 #' @export
 rope_split <- function(x, cos, sin) {
-    d <- anvl::shape(x)[anvl::ndims(x)]
+    d <- anvl::shape(x)[anvl::naxes(x)]
     r <- d %/% 2L
     first <- slice_lastdim(x, 1L, r)
     second <- slice_lastdim(x, r + 1L, 2L * r)
     out_first <- first * cos - second * sin
     out_second <- second * cos + first * sin
-    anvl::nv_concatenate(out_first, out_second, dimension = anvl::ndims(x))
+    anvl::nv_concatenate(out_first, out_second, axis = anvl::naxes(x))
 }
 
 #' Repeat KV heads to match query heads (grouped-query attention)
@@ -101,7 +99,7 @@ repeat_kv <- function(x, groups) {
     s <- anvl::shape(x)
     x <- anvl::nv_unsqueeze(x, 3L) # [B, KV, 1, S, D]
     x <- anvl::nv_broadcast_to(x, c(s[1L], s[2L], groups, s[3L], s[4L]))
-    anvl::nv_reshape(x, c(s[1L], s[2L] * groups, s[3L], s[4L]))
+    .reshape(x, c(s[1L], s[2L] * groups, s[3L], s[4L]))
 }
 
 #' Apply rotary position embeddings (interleaved pairs)
@@ -119,12 +117,12 @@ repeat_kv <- function(x, groups) {
 #' @export
 rope_apply <- function(x, cos, sin) {
     s <- anvl::shape(x)
-    r <- anvl::nv_reshape(x, c(s[1L], s[2L], s[3L], s[4L] %/% 2L, 2L))
+    r <- .reshape(x, c(s[1L], s[2L], s[3L], s[4L] %/% 2L, 2L))
     xr <- r[,,,, 1L]
     xi <- r[,,,, 2L]
     rot <- anvl::nv_concatenate(anvl::nv_unsqueeze(anvl::nv_negate(xi), 5L),
-                                anvl::nv_unsqueeze(xr, 5L), dimension = 5L)
-    x * cos + anvl::nv_reshape(rot, s) * sin
+                                anvl::nv_unsqueeze(xr, 5L), axis = 5L)
+    x * cos + .reshape(rot, s) * sin
 }
 
 #' Relative-position shift (Transformer-XL / ESPnet)
@@ -132,7 +130,7 @@ rope_apply <- function(x, cos, sin) {
 #' Turns the \code{[B, H, T, 2T-1]} query-vs-relative-position scores into
 #' \code{[B, H, T, T]} query-vs-key scores via the pad / reshape / slice
 #' trick, so entry \code{[i, t]} picks the score at relative distance
-#' \code{i - t}. Relies on \code{nv_reshape} being row-major (it is).
+#' \code{i - t}. The trick needs a row-major (torch) reshape.
 #'
 #' @param x AnvlArray \code{[B, H, T, 2T-1]}.
 #'
@@ -146,9 +144,9 @@ rel_shift <- function(x) {
     t <- s[3L]
     p <- s[4L]
     x <- anvl::nv_pad(x, 0, c(0L, 0L, 0L, 1L), c(0L, 0L, 0L, 0L))
-    x <- anvl::nv_reshape(x, c(b, h, p + 1L, t))
+    x <- .reshape(x, c(b, h, p + 1L, t))
     x <- .slice_dim(x, 3L, 2L, p + 1L)
-    x <- anvl::nv_reshape(x, c(b, h, t, p))
+    x <- .reshape(x, c(b, h, t, p))
     .slice_dim(x, 4L, 1L, t)
 }
 
@@ -197,7 +195,7 @@ rel_position_attention <- function(q, k, v, p, pos_bias_u, pos_bias_v,
     matrix_bd <- rel_shift(.matmul(q + bv, anvl::nv_transpose(p, swap)))
     scores <- (matrix_ac + matrix_bd) * scale
     if (!is.null(mask)) {
-        scores <- scores + anvl::nv_broadcast_to(mask, anvl::shape(scores))
+        scores <- scores + .bcast_to(mask, anvl::shape(scores))
     }
     .matmul(softmax(scores), v)
 }

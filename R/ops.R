@@ -16,7 +16,7 @@ NULL
 #'
 #' @export
 silu <- function(x) {
-    x * anvl::nv_logistic(x)
+    x * anvl::nv_plogis(x)
 }
 
 #' Softplus activation
@@ -29,7 +29,7 @@ silu <- function(x) {
 #'
 #' @export
 softplus <- function(x) {
-    anvl::nv_max(x, 0) +
+    anvl::nv_pmax(x, 0) +
     anvl::nv_log1p(anvl::nv_exp(anvl::nv_negate(anvl::nv_abs(x))))
 }
 
@@ -56,7 +56,7 @@ mish <- function(x) {
 #'
 #' @export
 elu <- function(x, alpha = 1) {
-    anvl::nv_max(x, 0) + (anvl::nv_exp(anvl::nv_min(x, 0)) - 1) * alpha
+    anvl::nv_pmax(x, 0) + (anvl::nv_exp(anvl::nv_pmin(x, 0)) - 1) * alpha
 }
 
 #' Snake activation
@@ -80,8 +80,8 @@ snake <- function(x, alpha, beta = NULL, eps = 1e-9) {
     if (is.null(beta)) {
         beta <- alpha
     }
-    a <- anvl::nv_broadcast_to(alpha, s)
-    b <- anvl::nv_broadcast_to(beta, s)
+    a <- .bcast_to(alpha, s)
+    b <- .bcast_to(beta, s)
     sn <- anvl::nv_sin(x * a)
     x + sn * sn / (b + eps)
 }
@@ -94,11 +94,11 @@ snake <- function(x, alpha, beta = NULL, eps = 1e-9) {
 #'
 #' @export
 softmax <- function(x) {
-    d <- anvl::ndims(x)
+    d <- anvl::naxes(x)
     s <- anvl::shape(x)
-    m <- anvl::nv_reduce_max(x, dims = d, drop = FALSE)
+    m <- anvl::nv_max(x, axes = d, drop = FALSE)
     e <- anvl::nv_exp(x - anvl::nv_broadcast_to(m, s))
-    z <- anvl::nv_reduce_sum(e, dims = d, drop = FALSE)
+    z <- anvl::nv_sum(e, axes = d, drop = FALSE)
     e / anvl::nv_broadcast_to(z, s)
 }
 
@@ -106,31 +106,31 @@ softmax <- function(x) {
 #'
 #' Biased variance, matching \code{torch::nn_layer_norm}. With
 #' \code{weight} and \code{bias} both NULL it is the affine-free form
-#' (\code{elementwise_affine = FALSE}); pass a length-\code{shape(x)[ndims(x)]}
+#' (\code{elementwise_affine = FALSE}); pass a length-\code{shape(x)[naxes(x)]}
 #' \code{weight} (and optional \code{bias}) for the standard affine LayerNorm
 #' \code{normalized * weight + bias}.
 #'
 #' @param x AnvlArray.
-#' @param weight AnvlArray of length \code{shape(x)[ndims(x)]}, or NULL for no
+#' @param weight AnvlArray of length \code{shape(x)[naxes(x)]}, or NULL for no
 #'   scale.
-#' @param bias AnvlArray of length \code{shape(x)[ndims(x)]}, or NULL for no
+#' @param bias AnvlArray of length \code{shape(x)[naxes(x)]}, or NULL for no
 #'   shift.
 #' @param eps Numeric. Stability epsilon.
 #'
 #' @export
 layer_norm <- function(x, weight = NULL, bias = NULL, eps = 1e-6) {
-    d <- anvl::ndims(x)
+    d <- anvl::naxes(x)
     s <- anvl::shape(x)
     n <- s[d]
-    mu <- anvl::nv_reduce_sum(x, dims = d, drop = FALSE) / n
+    mu <- anvl::nv_sum(x, axes = d, drop = FALSE) / n
     xc <- x - anvl::nv_broadcast_to(mu, s)
-    v <- anvl::nv_reduce_sum(xc * xc, dims = d, drop = FALSE) / n
+    v <- anvl::nv_sum(xc * xc, axes = d, drop = FALSE) / n
     out <- xc * anvl::nv_broadcast_to(anvl::nv_rsqrt(v + eps), s)
     if (!is.null(weight)) {
-        out <- out * anvl::nv_broadcast_to(weight, s)
+        out <- out * .bcast_to(weight, s)
     }
     if (!is.null(bias)) {
-        out <- out + anvl::nv_broadcast_to(bias, s)
+        out <- out + .bcast_to(bias, s)
     }
     out
 }
@@ -141,32 +141,26 @@ layer_norm <- function(x, weight = NULL, bias = NULL, eps = 1e-6) {
 #' here).
 #'
 #' @param x AnvlArray.
-#' @param weight AnvlArray of length \code{shape(x)[ndims(x)]}, or NULL.
+#' @param weight AnvlArray of length \code{shape(x)[naxes(x)]}, or NULL.
 #' @param eps Numeric. Stability epsilon.
 #'
 #' @export
 rms_norm <- function(x, weight = NULL, eps = 1e-6) {
-    d <- anvl::ndims(x)
+    d <- anvl::naxes(x)
     s <- anvl::shape(x)
     n <- s[d]
-    ms <- anvl::nv_reduce_sum(x * x, dims = d, drop = FALSE) / n
+    ms <- anvl::nv_sum(x * x, axes = d, drop = FALSE) / n
     out <- x * anvl::nv_broadcast_to(anvl::nv_rsqrt(ms + eps), s)
     if (!is.null(weight)) {
-        out <- out * anvl::nv_broadcast_to(weight, s)
+        out <- out * .bcast_to(weight, s)
     }
     out
 }
 
-# anvl 0.3.0's nv_matmul has no precision parameter and its CUDA dots
-# run TF32 (measured scaled err 1.4e-03); the dev branch adds
-# precision = with default "highest" (measured 2.3e-06, matching strict
-# f32). Pass precision only where supported so yunque works on both.
+# "highest" keeps CUDA dots in strict f32; TF32 measured a scaled error
+# of 1.4e-03 against 2.3e-06 for "highest".
 .matmul <- function(lhs, rhs, precision = "highest") {
-    if ("precision" %in% names(formals(anvl::nv_matmul))) {
-        anvl::nv_matmul(lhs, rhs, precision = precision)
-    } else {
-        anvl::nv_matmul(lhs, rhs)
-    }
+    anvl::nv_matmul(lhs, rhs, precision = precision)
 }
 
 #' Linear layer (bias-free)
@@ -181,19 +175,19 @@ rms_norm <- function(x, weight = NULL, eps = 1e-6) {
 #' @param bias AnvlArray \code{[d_out]} or NULL.
 #' @param precision Character. Matmul precision; the \code{"highest"}
 #'   default forbids TF32-style downgrades so f32 is honest f32.
-#'   Ignored on anvl 0.3.0, whose \code{nv_matmul} has no precision
-#'   parameter (and whose CUDA dots run TF32 regardless).
 #'
 #' @export
 linear <- function(x, w_t, bias = NULL, precision = "highest") {
     s <- anvl::shape(x)
     nd <- length(s)
     d_out <- anvl::shape(w_t)[2L]
+    # Merging the leading axes and splitting them back with the same
+    # (column-major) order is a round trip; the last axis stays whole.
     x2 <- anvl::nv_reshape(x, c(as.integer(prod(s[-nd])), s[nd]))
     y <- .matmul(x2, w_t, precision = precision)
     out_shape <- c(s[-nd], d_out)
     if (!is.null(bias)) {
-        y <- y + anvl::nv_broadcast_to(bias, anvl::shape(y))
+        y <- y + .bcast_to(bias, anvl::shape(y))
     }
     anvl::nv_reshape(y, out_shape)
 }
@@ -245,9 +239,9 @@ embedding <- function(weight, ids, zero_based = TRUE, dtype = "f32",
     nd <- length(s)
     start <- rep(1L, nd)
     start[dim] <- as.integer(from)
-    limit <- as.integer(s)
-    limit[dim] <- as.integer(to)
-    anvl::nv_static_slice(x, start_indices = start, limit_indices = limit,
+    end <- as.integer(s)
+    end[dim] <- as.integer(to)
+    anvl::nv_static_slice(x, start_indices = start, end_indices = end,
                           strides = rep(1L, nd))
 }
 
@@ -280,12 +274,12 @@ group_norm <- function(x, weight, bias, num_groups = 32L, eps = 1e-6) {
     b <- s[1L]; c <- s[2L]; h <- s[3L]; w <- s[4L]
     g <- as.integer(num_groups)
     per <- (c %/% g) * h * w
-    xg <- anvl::nv_reshape(x, c(b, g, per))
-    mu <- anvl::nv_reduce_sum(xg, dims = 3L, drop = FALSE) / per
+    xg <- .reshape(x, c(b, g, per))
+    mu <- anvl::nv_sum(xg, axes = 3L, drop = FALSE) / per
     xc <- xg - anvl::nv_broadcast_to(mu, c(b, g, per))
-    v <- anvl::nv_reduce_sum(xc * xc, dims = 3L, drop = FALSE) / per
+    v <- anvl::nv_sum(xc * xc, axes = 3L, drop = FALSE) / per
     xn <- xc * anvl::nv_broadcast_to(anvl::nv_rsqrt(v + eps), c(b, g, per))
-    xn <- anvl::nv_reshape(xn, c(b, c, h, w))
+    xn <- .reshape(xn, c(b, c, h, w))
     aff <- function(p) anvl::nv_broadcast_to(anvl::nv_reshape(p,
             c(1L, c, 1L, 1L)),
         c(b, c, h, w))
@@ -336,7 +330,7 @@ upsample_nearest2d <- function(x) {
     b <- s[1L]; c <- s[2L]; h <- s[3L]; w <- s[4L]
     x <- anvl::nv_reshape(x, c(b, c, h, 1L, w, 1L))
     x <- anvl::nv_broadcast_to(x, c(b, c, h, 2L, w, 2L))
-    anvl::nv_reshape(x, c(b, c, h * 2L, w * 2L))
+    .reshape(x, c(b, c, h * 2L, w * 2L))
 }
 
 #' Slice a contiguous range along the sequence dimension (dim 2)

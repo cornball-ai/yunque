@@ -3,8 +3,15 @@
 \alias{istft}
 \title{Inverse short-time Fourier transform}
 \usage{
-istft(real, imag, n_fft, hop_length = n_fft\%/\%4L, window = NULL, center = TRUE,
-      length = NULL)
+istft(
+  real,
+  imag,
+  n_fft,
+  hop_length = n_fft\%/\%4L,
+  window = NULL,
+  center = TRUE,
+  length = NULL
+)
 }
 \arguments{
 \item{real}{AnvlArray \code{[batch, n_freqs, n_frames]}. Real part.}

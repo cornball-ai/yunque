@@ -43,9 +43,9 @@ hann_window <- function(n) {
 # mirror without repeating the edge sample). anvl's nv_pad is zero-only.
 .reflect_pad_1d <- function(x, pad) {
     len <- anvl::shape(x)[3L]
-    left <- anvl::nv_reverse(.slice_dim(x, 3L, 2L, pad + 1L), dims = 3L)
-    right <- anvl::nv_reverse(.slice_dim(x, 3L, len - pad, len - 1L), dims = 3L)
-    anvl::nv_concatenate(left, x, right, dimension = 3L)
+    left <- anvl::nv_rev(.slice_dim(x, 3L, 2L, pad + 1L), axes = 3L)
+    right <- anvl::nv_rev(.slice_dim(x, 3L, len - pad, len - 1L), axes = 3L)
+    anvl::nv_concatenate(left, x, right, axis = 3L)
 }
 
 #' Short-time Fourier transform
@@ -149,7 +149,7 @@ istft <- function(real, imag, n_fft, hop_length = n_fft %/% 4L,
         win <- window
     }
     hop <- as.integer(hop_length)
-    spec <- anvl::nv_concatenate(real, imag, dimension = 2L)
+    spec <- anvl::nv_concatenate(real, imag, axis = 2L)
     ibasis_r <- .istft_basis(n_fft, win)
     ibasis <- anvl::nv_array(c(ibasis_r), dtype = anvl::dtype(real),
                              shape = dim(ibasis_r))
