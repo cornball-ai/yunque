@@ -37,6 +37,13 @@ jobs:
           sudo Rscript -e "install.packages('anvl', repos = c(sprintf('https://r-xla.r-universe.dev/bin/linux/${codename}-x86_64/%s/', substr(getRversion(), 1, 3)), 'https://cloud.r-project.org'))"
           Rscript -e 'packageVersion("anvl"); packageVersion("pjrt")'
 
+      # R CMD check points the R user cache at a temp dir during tests, so
+      # fetch the plugin here, into the cached dir, and pass its path on.
+      - name: PJRT CPU plugin
+        run: |
+          Rscript -e 'pjrt::install_pjrt(cuda = FALSE)'
+          echo "PJRT_PLUGIN_PATH_CPU=$HOME/.cache/R/pjrt/cpu/libpjrt_cpu.so" >> "$GITHUB_ENV"
+
       - name: Dependencies
         run: ./run.sh install_deps
 
