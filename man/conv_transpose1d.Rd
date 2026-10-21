@@ -3,8 +3,16 @@
 \alias{conv_transpose1d}
 \title{1-D transposed convolution with optional bias}
 \usage{
-conv_transpose1d(input, weight, bias = NULL, stride = 1L, padding = 0L,
-                 output_padding = 0L, dilation = 1L, groups = 1L)
+conv_transpose1d(
+  input,
+  weight,
+  bias = NULL,
+  stride = 1L,
+  padding = 0L,
+  output_padding = 0L,
+  dilation = 1L,
+  groups = 1L
+)
 }
 \arguments{
 \item{input}{AnvlArray \code{[N, C_in, L]}.}

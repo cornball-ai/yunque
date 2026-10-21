@@ -43,9 +43,16 @@ Every function works eagerly and inside `anvl::jit()`.
 anvl binary ops broadcast **scalars only** — there is no implicit
 numpy/torch-style shape broadcasting, so `(B, S, D) + (B, 1, D)` is an
 error. Every reduction here that feeds a binary op wraps the result in
-`anvl::nv_broadcast_to()` first. That single gotcha is the most common
-porting error coming from torch, and packaging it behind these helpers
-is most of what yunque is for.
+`anvl::nv_broadcast_to()` first, and lower-rank weights, biases and masks
+are aligned on the right the way numpy does it, since anvl aligns ranks on
+the left like base R. That single gotcha is the most common porting error
+coming from torch, and packaging it behind these helpers is most of what
+yunque is for.
+
+anvl's `nv_reshape()` is also column-major, like base R's `array()`.
+Wherever a torch model splits or merges axes (attention heads, RoPE pairs,
+GroupNorm groups, GQA expansion, upsampling), yunque reshapes in torch's
+row-major order, so ports can follow the torch code line by line.
 
 ## License
 

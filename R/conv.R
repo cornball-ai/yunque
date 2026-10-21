@@ -121,10 +121,10 @@ conv_transpose1d <- function(input, weight, bias = NULL, stride = 1L,
     dilation <- as.integer(dilation)
     k <- anvl::shape(weight)[3L]
     lo <- dilation * (k - 1L) - padding
-    xp <- anvl::nv_pad(input, 0, edge_padding_low = c(0L, 0L, lo),
-                       edge_padding_high = c(0L, 0L, lo + output_padding),
-                       interior_padding = c(0L, 0L, stride - 1L))
-    w <- anvl::nv_reverse(anvl::nv_transpose(weight, c(2L, 1L, 3L)), dims = 3L)
+    xp <- anvl::nv_pad(input, 0, low = c(0L, 0L, lo),
+                       high = c(0L, 0L, lo + output_padding),
+                       interior = c(0L, 0L, stride - 1L))
+    w <- anvl::nv_rev(anvl::nv_transpose(weight, c(2L, 1L, 3L)), axes = 3L)
     out <- anvl::nv_conv1d(xp, w, stride = 1L, padding = 0L,
                            dilation = dilation, groups = 1L)
     .conv_add_bias(out, bias)

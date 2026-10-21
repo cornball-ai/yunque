@@ -3,7 +3,14 @@
 \alias{batch_norm}
 \title{Batch normalization (inference) over the channel dimension}
 \usage{
-batch_norm(x, running_mean, running_var, weight = NULL, bias = NULL, eps = 1e-05)
+batch_norm(
+  x,
+  running_mean,
+  running_var,
+  weight = NULL,
+  bias = NULL,
+  eps = 1e-05
+)
 }
 \arguments{
 \item{x}{AnvlArray \code{[N, C, ...]}.}

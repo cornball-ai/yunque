@@ -1,8 +1,8 @@
 Package: yunque
 Type: Package
 Title: Neural-Network Building Blocks for anvl
-Version: 0.0.0.9001
-Date: 2026-09-08
+Version: 0.0.0.9002
+Date: 2026-10-21
 Authors@R: c(
     person("Troy", "Hernandez", role = c("aut", "cre"),
            email = "troy@cornball.ai",
@@ -15,6 +15,6 @@ Description: Composable neural-network operations on top of the anvl
     weight loading with float32 upcast. The forge accessory for the
     anvil.
 License: MIT + file LICENSE
-Imports: anvl, jsonlite
+Imports: anvl (>= 0.5.1), jsonlite
 Suggests: tinytest
 Encoding: UTF-8

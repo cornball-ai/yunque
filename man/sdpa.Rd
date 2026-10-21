@@ -22,9 +22,7 @@ NULL for none.}
 T5 uses (its relative-position bias is added to raw \code{qk^T}).}
 
 \item{precision}{Character. Matmul precision; the \code{"highest"}
-default forbids TF32-style downgrades so f32 is honest f32.
-Ignored on anvl 0.3.0, whose \code{nv_matmul} has no precision
-parameter (and whose CUDA dots run TF32 regardless).}
+default forbids TF32-style downgrades so f32 is honest f32.}
 }
 \value{
 AnvlArray \code{[B, H, Sq, D]}.

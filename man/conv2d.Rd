@@ -3,8 +3,15 @@
 \alias{conv2d}
 \title{2-D convolution with optional bias}
 \usage{
-conv2d(input, weight, bias = NULL, stride = 1L, padding = 0L, dilation = 1L,
-       groups = 1L)
+conv2d(
+  input,
+  weight,
+  bias = NULL,
+  stride = 1L,
+  padding = 0L,
+  dilation = 1L,
+  groups = 1L
+)
 }
 \arguments{
 \item{input}{AnvlArray \code{[N, C_in, H, W]}.}

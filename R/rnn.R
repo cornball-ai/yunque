@@ -29,10 +29,10 @@ NULL
 lstm_cell <- function(x_t, h, c, w_ih, w_hh, b_ih = NULL, b_hh = NULL) {
     gates <- linear(x_t, w_ih, b_ih) + linear(h, w_hh, b_hh)
     hd <- anvl::shape(h)[2L]
-    i <- anvl::nv_logistic(slice_lastdim(gates, 1L, hd))
-    f <- anvl::nv_logistic(slice_lastdim(gates, hd + 1L, 2L * hd))
+    i <- anvl::nv_plogis(slice_lastdim(gates, 1L, hd))
+    f <- anvl::nv_plogis(slice_lastdim(gates, hd + 1L, 2L * hd))
     g <- anvl::nv_tanh(slice_lastdim(gates, 2L * hd + 1L, 3L * hd))
-    o <- anvl::nv_logistic(slice_lastdim(gates, 3L * hd + 1L, 4L * hd))
+    o <- anvl::nv_plogis(slice_lastdim(gates, 3L * hd + 1L, 4L * hd))
     c_new <- f * c + i * g
     list(h = o * anvl::nv_tanh(c_new), c = c_new)
 }
@@ -77,7 +77,7 @@ lstm <- function(x, layers, batch_first = FALSE) {
         for (t in seq_len(n_seq)) {
             x_t <- anvl::nv_reshape(
                                     anvl::nv_static_slice(x, start_indices = c(t, 1L, 1L),
-                    limit_indices = c(t, batch, indim),
+                    end_indices = c(t, batch, indim),
                     strides = c(1L, 1L, 1L)),
                                     c(batch, indim))
             step <- lstm_cell(x_t, h, cc, ly$w_ih, ly$w_hh, ly$b_ih, ly$b_hh)
@@ -85,7 +85,7 @@ lstm <- function(x, layers, batch_first = FALSE) {
             cc <- step$c
             outs[[t]] <- anvl::nv_unsqueeze(h, 1L)
         }
-        x <- do.call(anvl::nv_concatenate, c(outs, list(dimension = 1L)))
+        x <- do.call(anvl::nv_concatenate, c(outs, list(axis = 1L)))
         h_n[[l]] <- anvl::nv_unsqueeze(h, 1L)
         c_n[[l]] <- anvl::nv_unsqueeze(cc, 1L)
     }
@@ -96,7 +96,7 @@ lstm <- function(x, layers, batch_first = FALSE) {
     }
     list(
          output = output,
-         h_n = do.call(anvl::nv_concatenate, c(h_n, list(dimension = 1L))),
-         c_n = do.call(anvl::nv_concatenate, c(c_n, list(dimension = 1L)))
+         h_n = do.call(anvl::nv_concatenate, c(h_n, list(axis = 1L))),
+         c_n = do.call(anvl::nv_concatenate, c(c_n, list(axis = 1L)))
     )
 }

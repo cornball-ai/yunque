@@ -15,5 +15,5 @@ AnvlArray \code{[B, H, T, T]}.
 Turns the \code{[B, H, T, 2T-1]} query-vs-relative-position scores into
 \code{[B, H, T, T]} query-vs-key scores via the pad / reshape / slice
 trick, so entry \code{[i, t]} picks the score at relative distance
-\code{i - t}. Relies on \code{nv_reshape} being row-major (it is).
+\code{i - t}. The trick needs a row-major (torch) reshape.
 }

@@ -108,3 +108,39 @@ for (i in 1:2) {
         expect_true(max(abs(em[i, j, ] - emb[ids_m[i, j] + 1L, ])) < 1e-6)
     }
 }
+
+# group_norm: each group is a run of consecutive channels (torch order),
+# normalized over those channels and every spatial position.
+gb <- 2L
+gc <- 6L
+gh <- 3L
+gw <- 4L
+ng <- 3L
+gx <- array(rnorm(gb * gc * gh * gw), c(gb, gc, gh, gw))
+gwt <- runif(gc, 0.5, 1.5)
+gbs <- rnorm(gc)
+gref <- array(0, dim(gx))
+cg <- gc %/% ng
+for (b in 1:gb) {
+    for (g in 1:ng) {
+        ch <- ((g - 1L) * cg + 1L):(g * cg)
+        v <- gx[b, ch, , ]
+        z <- (v - mean(v)) / sqrt(mean((v - mean(v))^2) + 1e-6)
+        gref[b, ch, , ] <- z
+    }
+}
+for (c in 1:gc) {
+    gref[, c, , ] <- gref[, c, , ] * gwt[c] + gbs[c]
+}
+gn <- as.array(group_norm(anvl::nv_array(gx, dtype = "f32"),
+                          anvl::nv_array(gwt, dtype = "f32"),
+                          anvl::nv_array(gbs, dtype = "f32"),
+                          num_groups = ng))
+expect_true(max(abs(gn - gref)) < 1e-5)
+
+# upsample_nearest2d: each pixel becomes a 2x2 block
+ux <- array(rnorm(2 * 3 * 2 * 3), c(2L, 3L, 2L, 3L))
+uref <- ux[, , rep(1:2, each = 2L), rep(1:3, each = 2L)]
+up <- as.array(upsample_nearest2d(anvl::nv_array(ux, dtype = "f32")))
+expect_equal(dim(up), c(2L, 3L, 4L, 6L))
+expect_true(max(abs(up - uref)) < 1e-6)

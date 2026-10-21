@@ -8,7 +8,7 @@ rms_norm(x, weight = NULL, eps = 1e-06)
 \arguments{
 \item{x}{AnvlArray.}
 
-\item{weight}{AnvlArray of length \code{shape(x)[ndims(x)]}, or NULL.}
+\item{weight}{AnvlArray of length \code{shape(x)[naxes(x)]}, or NULL.}
 
 \item{eps}{Numeric. Stability epsilon.}
 }
