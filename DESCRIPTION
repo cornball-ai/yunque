@@ -1,7 +1,7 @@
 Package: yunque
 Type: Package
 Title: Neural-Network Building Blocks for anvl
-Version: 0.0.0.9002
+Version: 0.0.0.9003
 Date: 2026-10-21
 Authors@R: c(
     person("Troy", "Hernandez", role = c("aut", "cre"),
@@ -9,11 +9,12 @@ Authors@R: c(
            comment = c(ORCID = "0009-0005-4248-604X")),
     person("cornball.ai", role = "cph"))
 Description: Composable neural-network operations on top of the anvl
-    XLA array-computing package: broadcast-aware helpers, softmax,
-    layer and RMS normalization, SiLU, scaled dot-product attention,
-    rotary position embeddings, and linear layers, plus safetensors
-    weight loading with float32 upcast. The forge accessory for the
-    anvil.
+    XLA array-computing package: broadcasting arithmetic, softmax,
+    layer and RMS normalization, activations, scaled dot-product
+    attention, rotary position embeddings, adaLN modulation, timestep
+    embeddings, linear and convolution layers, attention masks, and
+    declarative safetensors weight loading with float32 upcast. The
+    forge accessory for the anvil.
 License: MIT + file LICENSE
 Imports: anvl (>= 0.5.1), jsonlite
 Suggests: tinytest

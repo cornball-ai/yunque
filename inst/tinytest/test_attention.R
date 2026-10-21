@@ -162,3 +162,14 @@ hc4 <- aperm(array(hc, c(Sr, r2, B, H)), c(3L, 4L, 1L, 2L))
 hs4 <- aperm(array(hs, c(Sr, r2, B, H)), c(3L, 4L, 1L, 2L))
 sgot <- as.array(rope_split(nva(rx), nva(hc4), nva(hs4)))
 expect_true(max(abs(sgot - sref)) < 1e-5)
+
+# Lower-rank RoPE tables: [S, D] is shared across batch and heads, and a
+# per-batch [B, S, D] table gets the head axis inserted.
+ra2 <- as.array(rope_apply(nva(rx), nva(rc), nva(rs)))
+expect_true(max(abs(ra2 - ref_rope(rx, rc3, rs3))) < 1e-5)
+sgot2 <- as.array(rope_split(nva(rx), nva(hc), nva(hs)))
+expect_true(max(abs(sgot2 - sref)) < 1e-5)
+rc3[2, , ] <- rc3[2, , ] * 0.5
+rs3[2, , ] <- rs3[2, , ] * 0.5
+ra3 <- as.array(rope_apply(nva(rx), nva(rc3), nva(rs3)))
+expect_true(max(abs(ra3 - ref_rope(rx, rc3, rs3))) < 1e-5)

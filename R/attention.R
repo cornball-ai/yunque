@@ -66,8 +66,10 @@ gelu <- function(x, approximate = c("tanh", "none")) {
 #' interleaved-pair \code{\link{rope_apply}} used by FLUX.
 #'
 #' @param x AnvlArray \code{[B, H, S, D]}, D even.
-#' @param cos AnvlArray broadcastable to \code{[B, H, S, D/2]}.
-#' @param sin AnvlArray broadcastable to \code{[B, H, S, D/2]}.
+#' @param cos AnvlArray \code{[B, H, S, D/2]}, or a lower-rank table that
+#'   aligns to it: \code{[S, D/2]} shared across batch and heads, or a
+#'   per-batch \code{[B, S, D/2]}, which gets the head axis inserted.
+#' @param sin AnvlArray, same shapes as \code{cos}.
 #'
 #' @export
 rope_split <- function(x, cos, sin) {
@@ -75,6 +77,8 @@ rope_split <- function(x, cos, sin) {
     r <- d %/% 2L
     first <- slice_lastdim(x, 1L, r)
     second <- slice_lastdim(x, r + 1L, 2L * r)
+    cos <- .align_batched(cos, first)
+    sin <- .align_batched(sin, first)
     out_first <- first * cos - second * sin
     out_second <- second * cos + first * sin
     anvl::nv_concatenate(out_first, out_second, axis = anvl::naxes(x))
@@ -106,17 +110,20 @@ repeat_kv <- function(x, groups) {
 #'
 #' FLUX convention: the last dimension holds \code{D/2} interleaved
 #' (real, imag) pairs; \code{cos}/\code{sin} carry each angle twice so
-#' they multiply elementwise. All three arguments must share the same
-#' 4-D shape \code{[B, H, S, D]} — broadcast \code{cos}/\code{sin}
-#' before calling.
+#' they multiply elementwise. The tables may be \code{[B, H, S, D]} like
+#' \code{x}, a \code{[S, D]} table shared across batch and heads, or a
+#' per-batch \code{[B, S, D]} table, which gets the head axis inserted.
 #'
 #' @param x AnvlArray \code{[B, H, S, D]}, D even.
-#' @param cos AnvlArray with the same shape as \code{x}.
-#' @param sin AnvlArray with the same shape as \code{x}.
+#' @param cos AnvlArray \code{[B, H, S, D]}, \code{[B, S, D]} or
+#'   \code{[S, D]}.
+#' @param sin AnvlArray, same shapes as \code{cos}.
 #'
 #' @export
 rope_apply <- function(x, cos, sin) {
     s <- anvl::shape(x)
+    cos <- .align_batched(cos, x)
+    sin <- .align_batched(sin, x)
     r <- .reshape(x, c(s[1L], s[2L], s[3L], s[4L] %/% 2L, 2L))
     xr <- r[,,,, 1L]
     xi <- r[,,,, 2L]

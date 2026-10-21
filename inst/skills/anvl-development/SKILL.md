@@ -248,8 +248,9 @@ bcast_to <- function(x, shape) {
 }
 ```
 
-yunque does both internally; use its building blocks rather than
-re-deriving them. Weights are unaffected: yunque's `st_read()` returns
+yunque does both internally, and `yunque::badd()` / `bsub()` / `bmul()` /
+`bdiv()` apply numpy broadcasting to two arrays; use its building blocks
+rather than re-deriving them. Weights are unaffected: yunque's `st_read()` returns
 R arrays whose `[i, j, ...]` indexing matches the torch tensor, and
 `nv_array()` of an R array keeps that indexing.
 
@@ -355,7 +356,11 @@ freeing the R copy, or peak host memory is the whole model twice.
   `rms_norm`, `group_norm`, `batch_norm`, `silu`, `gelu`, `mish`, `elu`,
   `snake`, `linear`, `sdpa`, `rope_apply` / `rope_split`, `repeat_kv`,
   `rel_position_attention`, `upsample_nearest2d`, `conv1d/2d/3d` with
-  bias, `conv_transpose1d`, `lstm`, `stft` / `istft`, and the
+  bias, `conv_transpose1d`, `lstm`, `stft` / `istft`, numpy-style
+  `badd` / `bsub` / `bmul` / `bdiv`, the DiT pieces `modulate`,
+  `gated_residual` and `timestep_embedding`, `pad_to` / `seq_mask` /
+  `causal_mask` for static-shape batching, the declarative weight tree
+  (`w_linear`, `w_tensor`, `w_cat`, `w_layers`, `load_weights`), and the
   safetensors reader. Reach for yunque before composing from scratch.
 - **No transposed convolution.** yunque's `conv_transpose1d` builds it
   from interior padding plus a flipped-kernel conv.

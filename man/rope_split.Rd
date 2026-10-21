@@ -8,9 +8,11 @@ rope_split(x, cos, sin)
 \arguments{
 \item{x}{AnvlArray \code{[B, H, S, D]}, D even.}
 
-\item{cos}{AnvlArray broadcastable to \code{[B, H, S, D/2]}.}
+\item{cos}{AnvlArray \code{[B, H, S, D/2]}, or a lower-rank table that
+aligns to it: \code{[S, D/2]} shared across batch and heads, or a
+per-batch \code{[B, S, D/2]}, which gets the head axis inserted.}
 
-\item{sin}{AnvlArray broadcastable to \code{[B, H, S, D/2]}.}
+\item{sin}{AnvlArray, same shapes as \code{cos}.}
 }
 \description{
 Rotates pairs formed by splitting the last dimension in half: element
