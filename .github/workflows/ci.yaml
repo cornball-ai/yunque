@@ -1,0 +1,82 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  _R_CHECK_FORCE_SUGGESTS_: "false"
+  # pjrt downloads its PJRT CPU plugin on first use; allow it without a prompt.
+  PJRT_INSTALL: "1"
+
+jobs:
+  ci:
+    # r-universe builds the compiled pjrt binary for Ubuntu 26.04 only; on
+    # 24.04 it serves source, which needs protobuf and a long C++ build.
+    runs-on: ubuntu-26.04
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup
+        uses: eddelbuettel/github-actions/r-ci@master
+
+      - name: Cache PJRT plugin
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/R/pjrt
+          key: pjrt-cpu-${{ runner.os }}-${{ runner.arch }}-v1
+
+      # anvl and its compiled pjrt dependency are not on CRAN. Install the
+      # r-xla r-universe binaries for this Ubuntu release so pjrt is not
+      # built from source; install_deps then finds anvl already present.
+      - name: anvl from r-universe
+        run: |
+          # the pjrt binary links against the system libprotobuf
+          sudo apt-get install -y --no-install-recommends libprotobuf-dev
+          codename=$(lsb_release -cs)
+          sudo Rscript -e "install.packages('anvl', repos = c(sprintf('https://r-xla.r-universe.dev/bin/linux/${codename}-x86_64/%s/', substr(getRversion(), 1, 3)), 'https://cloud.r-project.org'))"
+          Rscript -e 'packageVersion("anvl"); packageVersion("pjrt")'
+
+      # R CMD check points the R user cache at a temp dir during tests, so
+      # fetch the plugin here, into the cached dir, and pass its path on.
+      - name: PJRT CPU plugin
+        run: |
+          Rscript -e 'pjrt::install_pjrt(cuda = FALSE)'
+          echo "PJRT_PLUGIN_PATH_CPU=$HOME/.cache/R/pjrt/cpu/libpjrt_cpu.so" >> "$GITHUB_ENV"
+
+      - name: Dependencies
+        run: ./run.sh install_deps
+
+      - name: Test
+        run: ./run.sh run_tests
+
+      # The anvl tests exit early when anvl cannot load, which R CMD check
+      # reports as OK; show the counts so a green run proves they ran.
+      - name: Test results
+        if: always()
+        run: |
+          out=$(find . -path "*.Rcheck/tests/tinytest.Rout*" -print -quit)
+          if [ -z "$out" ]; then
+            echo "no tinytest output found" >&2
+            exit 1
+          fi
+          grep -E "test_[a-z_]+\.R|All ok" "$out" || tail -40 "$out"
+          if grep -q "Exited" "$out"; then
+            echo "a test file exited early; the anvl tests did not run" >&2
+            exit 1
+          fi
+
+      - name: Fail on check WARNINGs
+        run: |
+          log=$(find . -name 00check.log -print -quit)
+          if [ -z "$log" ]; then
+            echo "no 00check.log found - the check did not run" >&2
+            exit 1
+          fi
+          grep -E "^Status" "$log"
+          if grep -qE "^Status:.*(ERROR|WARNING)" "$log"; then
+            grep -B2 -A8 -E "\.\.\. (ERROR|WARNING)" "$log" >&2
+            exit 1
+          fi
