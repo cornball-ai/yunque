@@ -1,3 +1,23 @@
+# yunque 0.0.0.9003
+
+- Broadcasting arithmetic: `badd()`, `bsub()`, `bmul()`, `bdiv()` apply
+  numpy-style broadcasting before the op, so `[B, S, D]` combines with
+  `[D]`, `[1, D]` or `[B, 1, D]` directly.
+- DiT building blocks: `modulate()` (adaLN `x * (1 + scale) + shift`) and
+  `gated_residual()` take per-batch `[B, D]` vectors and align them to
+  `[B, S, D]` activations themselves; `timestep_embedding()` is the diffusers
+  sinusoidal embedding with the DDPM and FLUX conventions.
+- `rope_apply()` and `rope_split()` accept `[S, D]` tables shared across
+  batch and heads, or per-batch `[B, S, D]` tables, in addition to tables
+  already shaped like `x`.
+- Static-shape helpers: `pad_to()` pads an axis up to a bucket multiple so
+  variable lengths compile once per bucket; `seq_mask()` and `causal_mask()`
+  build the additive biases `sdpa()` takes.
+- Declarative weight loading: describe a checkpoint as a nested tree of
+  `w_linear()`, `w_tensor()`, `w_cat()` (fused projections) and `w_layers()`
+  specs and `load_weights()` reads it into `AnvlArray`s, erroring on missing
+  keys and reporting the checkpoint keys the spec never used.
+
 # yunque 0.0.0.9002
 
 - Requires anvl >= 0.5.1. anvl 0.5 reshapes column-major and broadcasts

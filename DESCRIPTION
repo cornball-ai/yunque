@@ -1,7 +1,7 @@
 Package: yunque
 Type: Package
 Title: Neural-Network Building Blocks for anvl
-Version: 0.0.0.9002
+Version: 0.0.0.9003
 Date: 2026-10-21
 Authors@R: c(
     person("Troy", "Hernandez", role = c("aut", "cre"),
