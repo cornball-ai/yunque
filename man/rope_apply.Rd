@@ -8,14 +8,15 @@ rope_apply(x, cos, sin)
 \arguments{
 \item{x}{AnvlArray \code{[B, H, S, D]}, D even.}
 
-\item{cos}{AnvlArray with the same shape as \code{x}.}
+\item{cos}{AnvlArray \code{[B, H, S, D]}, \code{[B, S, D]} or
+\code{[S, D]}.}
 
-\item{sin}{AnvlArray with the same shape as \code{x}.}
+\item{sin}{AnvlArray, same shapes as \code{cos}.}
 }
 \description{
 FLUX convention: the last dimension holds \code{D/2} interleaved
 (real, imag) pairs; \code{cos}/\code{sin} carry each angle twice so
-they multiply elementwise. All three arguments must share the same
-4-D shape \code{[B, H, S, D]} — broadcast \code{cos}/\code{sin}
-before calling.
+they multiply elementwise. The tables may be \code{[B, H, S, D]} like
+\code{x}, a \code{[S, D]} table shared across batch and heads, or a
+per-batch \code{[B, S, D]} table, which gets the head axis inserted.
 }
